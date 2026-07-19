@@ -1,0 +1,128 @@
+Data Engineering Practical Assessments
+Shared Data Source Information
+Candidates will use the public NYC Yellow Taxi Trip Records. They can download the data
+directly using command-line tools.
+●​ Dataset URL: https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+●​ Direct Download Example (Parquet):
+https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet
+Candidates can use AI tools . But should be able to explain any randomly picked up code
+segment while doing the physical demonstration .​
+​
+Candidates may come up with a lot of issues regarding clarity of the assignment since scope
+is not strictly mentioned. In those conditions candidates should be able to make their own
+decision with the best assumption and move ahead and mention the assumption while
+demoing the solution. Even if the data sets are not available you can generate a suitable data
+set to cover the features . If you have resource limitation in the local device , try with
+minimal specs (Ex : no need for multiple nodes in kafka ) . If all the service can not run once
+, demo it in the stage by stage to proof the service are work as expected.
+If the candidate is a Data engineer . Suggest to start with Assignment 1, and then start
+Assignment 2.
+If the candidate is senior engineer /Lead : mandatory to complete both assignments
+
+Assignment 1:
+Focus: Batch ETL, Data Modeling, SQL, Python, Local Orchestration, and Basic Monitoring.
+
+1. Objective
+Build a local, automated batch ETL pipeline that downloads taxi trip data, transforms it into
+a clean dimensional model (Star Schema), loads it into a local database, and exposes key
+business metrics through a lightweight dashboard.
+
+2. Core Requirements & Technical Stack
+Component
+Environment & Scripting
+Orchestration / ETL
+Storage / Database
+Data Visualization
+
+Technology Requirements
+Linux/Bash, Python 3.10+
+Modern Open Source (e.g., Dagster, Prefect,
+or Apache Airflow)
+PostgreSQL or DuckDB (Local or via
+Docker)
+Streamlit or Apache Superset
+
+3. Detailed Tasks for the Candidate
+1.​ Task 1: Linux & Setup (Bash): Write a Bash script (setup.sh) that automates creating a
+Python virtual environment, installing dependencies, and spinning up a local
+PostgreSQL database using Docker. Use curl or wget to programmatically download at
+least two months of NYC Taxi data.
+2.​ Task 2: Data Modeling & Database Setup: Design a Star Schema optimized for analytical
+queries. Create a schema.sql file defining a central Fact Table (fact_taxi_trips) and at
+least three Dimension Tables.
+3.​ Task 3: Python ETL & Orchestration: Build an ETL pipeline using a modern
+orchestration tool. Extract & Clean using Python. Transform & Load into your structured
+SQL Star Schema tables.
+4.​ Task 4: Monitoring & Logging: Implement structured Python logging to capture pipeline
+start/end times, row counts processed, and explicit error handling. Configure the
+orchestration tool to alert/log status on failures.
+5.​ Task 5: SQL & Dashboarding: Write SQL queries to calculate: Average fare amount per
+mile, Peak hours for taxi rides, and Total revenue by payment type. Build a single-page
+Streamlit or Superset dashboard.
+
+4. Evaluation Criteria
+●​
+●​
+●​
+●​
+
+Cleanliness and readability of Python and SQL code.
+Proper separation of concerns in the Data Model (Star Schema).
+Correct usage of the orchestration framework features.
+Robustness of logging and error tracking.
+
+Assignment 2:
+Focus: Real-time Streaming Architecture, Heavy Kafka integration, High-Level Observability,
+Scalability, and Advanced Data Engineering.
+
+1. Objective
+Architect and implement a local real-time data ingestion and processing pipeline. Simulate a
+live stream of taxi ride events into Apache Kafka, consume and aggregate the events in real
+time, store them efficiently, and build an observability layer.
+
+2. Core Requirements & Technical Stack
+Component
+Message Broker
+Streaming ETL
+Storage / OLAP
+Monitoring & Observability
+Architecture
+
+Technology Requirements
+Apache Kafka (Local multi-node cluster via
+Docker Compose)
+PySpark Streaming, Faust, or native
+Kafka-Python
+ClickHouse, PostgreSQL, or TimescaleDB
+Prometheus & Grafana
+System Design Diagram & Documentation
+
+3. Detailed Tasks for the Candidate
+6.​ Task 1: Infrastructure Setup & Kafka Configuration: Provide a docker-compose.yml that
+provisions a multi-broker Kafka cluster locally. Configure a Kafka topic named
+taxi-trips-stream with multiple partitions.
+7.​ Task 2: Stream Producer (Python): Write a Python script that reads the downloaded NYC
+Parquet/CSV data and acts as a "Stream Producer," pushing records into the Kafka topic
+at a rate of 10–50 events per second.
+8.​ Task 3: Stream Ingestion, Processing & Modeling: Write a streaming application to
+consume events from the topic. Calculate a sliding window aggregation. Write the raw
+streaming events into an analytical table while upserting aggregations.
+9.​ Task 4: End-to-End Monitoring & Observability: Expose application metrics to
+Prometheus. Build a Grafana dashboard that visualizes cluster health, consumer lag, and
+pipeline throughput.
+10.​Task 5: System Architecture Document: Submit a README.md containing a production
+architecture design detailing how to scale this local setup to handle 50,000 events per
+second on a cloud provider.
+
+4. Evaluation Criteria
+●​
+●​
+●​
+●​
+
+Deep understanding of Kafka configurations.
+Ability to handle out-of-order streaming events and backpressure.
+Quality of the Monitoring/Observability setup.
+Strategic thinking displayed in the production-ready system design document.
+
+

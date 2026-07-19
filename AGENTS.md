@@ -1,0 +1,39 @@
+# OpenCode Instructions
+
+## Non-Negotiables
+
+- Use `/caveman ultra` for all prose responses: maximum terseness, exact technical substance, no filler. Keep code, commit messages, and PR text normal.
+- Before non-trivial work, ask one concise batch covering any unresolved scope, acceptance criteria, technology choices, or constraints. Skip only when request or repo already answers them; never guess user preference.
+- Follow workflow in this order: design, architect, document, execute, review.
+- Never push. User reviews work and pushes to remote.
+- When branching is requested, use standard GitFlow: `main`, `develop`, `feature/*`, `release/*`, `hotfix/*`.
+
+## Scope And Sources
+
+- This repo demos both assignments in `Docs/Data_Engineering_Assessments.docx.txt`; neither assignment is optional.
+- Treat `Docs/Data_Engineering_Assessments.docx.txt` as requirements and `GUIDE.md` as project workflow/layout guidance. If executable config later conflicts with prose, verify intent with user.
+- Keep root `README.md` for project-wide overview and decisions. Keep implementation details in `Assignment_1/README.md` and `Assignment_2/README.md`.
+- Use public NYC Yellow Taxi records. Direct Parquet pattern: `https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_YYYY-MM.parquet`.
+- Ask before resolving unclear requirements. Record agreed assumptions in relevant assignment README so demo can explain them.
+
+## Demo Requirements
+
+- Assignment 1: Python 3.10+, Bash `setup.sh`, virtual environment, dependency install, PostgreSQL in Docker, and at least two downloaded months via `curl` or `wget`.
+- Assignment 1 model: `schema.sql` defines `fact_taxi_trips` plus at least three dimensions, loaded through a modern orchestrator; structured logs include start/end times and row counts; orchestrator logs or alerts failures.
+- Assignment 1 output: queries for average fare per mile, peak ride hours, revenue by payment type; one-page Streamlit or Superset dashboard.
+- Assignment 2: multi-broker Kafka is mandatory despite general resource-limit allowance. Topic must be `taxi-trips-stream` with multiple partitions.
+- Assignment 2 flow: producer sends 10-50 events/second; consumer computes sliding-window aggregation, stores raw events, and upserts aggregates.
+- Assignment 2 observability: Prometheus and Grafana must show cluster health, consumer lag, and throughput.
+- Assignment 2 docs: include system diagram; production design explains scaling to 50,000 events/second, out-of-order events, and backpressure.
+- Synthetic data is allowed only when source data is unavailable. Stage-by-stage demo is allowed when local resources cannot run every service together.
+
+## Current State
+
+- Repo currently contains documentation only: no manifests, source, CI, tests, formatter, or verified developer commands. Do not invent commands.
+- When adding first executable tooling, document exact setup, focused test, lint, typecheck, run, and teardown commands in relevant README; update this file with non-obvious command order or prerequisites.
+
+## GitHub And Domain Docs
+
+- Issues and PRDs use GitHub Issues through `gh`; external PRs use same triage flow. Details: `docs/agents/issue-tracker.md`.
+- Triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Details: `docs/agents/triage-labels.md`.
+- If present, read relevant `CONTEXT-MAP.md`, context `CONTEXT.md`, and ADRs before design changes. If absent, proceed silently. Details: `docs/agents/domain.md`.
