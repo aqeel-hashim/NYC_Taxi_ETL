@@ -21,10 +21,10 @@ Definition of done:
 
 - `./setup.sh` takes a supported clean Linux or WSL2 host from validated prerequisites to loaded data and usable UIs.
 - Host with Docker memory below 8 GiB automatically uses staged mode; 8 GiB or more and at least 4 CPUs uses concurrent mode.
-- Full two-month run targets 45 minutes without OOM on the known 4 CPU/3.8 GiB host. Phase 11 must measure the complete stack before converting this target into a release gate; if impossible, use documented stage-by-stage proof instead of claiming success.
+- Small PC full two-month run targets 45 minutes without OOM on its known 4 CPU/3.8 GiB host. Phase 11 must measure complete stack before converting this target into a release gate; if impossible, use documented stage-by-stage proof instead of claiming success. Big PC gets separate benchmark evidence.
 - Rerunning either month changes no business result and creates no duplicate fact rows.
 - Fact-row counts satisfy `source_rows = accepted_rows + rejected_rows`, `flagged_rows <= accepted_rows`, and `staged_fact_rows = loaded_fact_rows = published_fact_rows = accepted_rows` for each source version. Dimension/mart counts use separate names.
-- Cached dashboard requests target under 1 second; uncached aggregate and trip-page requests target two-second end-to-end p95 on the reference host. Phase 10 must record test conditions before making these release gates.
+- Cached dashboard requests target under 1 second; uncached aggregate and trip-page requests target two-second end-to-end p95. Record Small PC and Big PC separately. Phase 10 must record test conditions before making these release gates.
 - Required SQL files execute against published data and match dashboard values.
 - Controlled failure reaches Airflow state/logs, local webhook receiver, Mailpit, Prometheus/Alertmanager, and Grafana/Loki evidence.
 - Local backup restore recreates fixture data and passes row-count/checksum checks.
@@ -520,6 +520,14 @@ Dashboard performance/security:
 
 Automate Linux `amd64`/`arm64`; support WSL2 with extra browser trust instructions. Other operating systems fail early with exact install guidance.
 
+Known OpenCode profiles:
+
+- `/smallpc`: native Void Linux `x86_64`, 4 CPUs, 3.8 GiB RAM, no swap; expected staged/stage-by-stage mode.
+- `/bigpc`: Windows host with Void Linux WSL2, 16 CPU cores, 16 GiB host RAM, GPU; expected concurrent candidate only after Docker-visible preflight.
+- Profile command sets session context, not runtime configuration. Setup always measures actual resources.
+- On Big PC, clone/run under WSL Linux filesystem, verify Docker integration, keep Windows/WSL CA trust separate, and ignore GPU unless later validated requirement needs it.
+- Full profile rules and benchmark metadata: `docs/agents/machine-profiles.md`.
+
 Only globally required:
 
 - Working Docker engine.
@@ -594,7 +602,7 @@ Staged profile:
 - Scales Grafana and Streamlit down during heavy transforms.
 - Starts presentation services after ETL task pods exit.
 - Must still capture metrics, logs, email, webhook, and alerts during ETL.
-- Phase 7 measures minimal ETL baseline. Phase 11 must publish complete-stack per-pod requests/limits and peak totals with at least 20% Docker-memory headroom. If the 3.8 GiB host cannot satisfy this, setup must block unsupported concurrency and follow the documented stage-by-stage replay/evidence path.
+- Phase 7 measures minimal ETL baseline. Phase 11 must publish complete-stack per-pod requests/limits and peak totals with at least 20% Docker-memory headroom for each machine used. If Small PC cannot satisfy this, setup must block unsupported concurrency and follow documented stage-by-stage replay/evidence path. Big PC still uses live Docker measurements, not nominal host capacity.
 
 ### 7.4 Security Boundaries
 
@@ -780,8 +788,9 @@ Release kind smoke:
 Full-data acceptance, run manually before release:
 
 - Real January-February files, no synthetic fallback.
-- If Phase 11 proves the reference host supported, enforce under-45-minute and no-OOM/restart gates.
-- If Phase 11 proves the reference host cannot fit the active service envelope with 20% headroom, execute/document approved stage-by-stage full-data proof and report measured runtime/resource limits; never mark unsupported concurrent/staged targets as passed.
+- If Phase 11 proves Small PC supported, enforce under-45-minute and no-OOM/restart Small PC gates.
+- If Phase 11 proves Small PC cannot fit active service envelope with 20% headroom, execute/document approved stage-by-stage full-data proof and report measured runtime/resource limits; never mark unsupported concurrent/staged targets as passed.
+- Run Big PC acceptance separately inside WSL2, recording Docker allocation and concurrent-profile results; never substitute Big PC success for Small PC evidence.
 - Required SQL/dashboard agreement.
 - Query latency budgets.
 - Source-to-publish reconciliation and no duplicate source identity.
@@ -1097,7 +1106,7 @@ Steps:
 
 Exit:
 
-- Minimal stack passes fixture ETL on reference host.
+- Minimal stack passes fixture ETL on active measured host; retain separate Small PC/Big PC evidence.
 - No OOM, pending PVC, uncontrolled privilege, unpinned artifact, unknown CRD validation, or missing limit.
 
 Planned commit: `feat(a1): run ETL on local Kubernetes`
@@ -1184,7 +1193,7 @@ Steps:
 3. Implement core/all tools, offline completeness, and explicit synthetic fallback restricted to verified source unavailability.
 4. Trigger full calibration and two monthly runs.
 5. Add safe teardown/purge confirmations.
-6. Run real full-data acceptance on reference host.
+6. Run real full-data acceptance on selected measured host; label Small PC versus Big PC evidence.
 7. Measure complete concurrent/staged pod envelope and prove staged mode captures metrics/logs/email/webhook/alerts while presentation UIs are scaled down.
 
 Exit:

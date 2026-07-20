@@ -11,3 +11,7 @@ Implementation has not started. Follow the reviewed [implementation plan](docs/i
 - Financial/unit metrics exclude statistical outliers by default; demand counts retain all hard-valid rows.
 - Peak hour means pickup trip count by local NYC wall-clock hour.
 - Local hardware may use stage-by-stage service activation; multi-broker Kafka remains Assignment 2 work.
+
+## Machine Profiles
+
+Run `/bigpc` or `/smallpc` after starting fresh OpenCode session. Big PC runs inside Void Linux WSL2 and is expected to support concurrent profile only after Docker preflight. Small PC expects staged or stage-by-stage profile. See [`docs/agents/machine-profiles.md`](../docs/agents/machine-profiles.md).
