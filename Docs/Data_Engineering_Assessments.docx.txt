@@ -124,5 +124,3 @@ Deep understanding of Kafka configurations.
 Ability to handle out-of-order streaming events and backpressure.
 Quality of the Monitoring/Observability setup.
 Strategic thinking displayed in the production-ready system design document.
-
-
