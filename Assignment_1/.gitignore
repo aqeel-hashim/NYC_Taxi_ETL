@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# uv
+uv.lock
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tools
+.tools/
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# Docker
+*.tar
+*.tar.gz
+
+# MinIO host data
+minio-data/
+
+# Kind
+kubeconfig
+*.kubeconfig
