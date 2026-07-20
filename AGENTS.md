@@ -8,6 +8,14 @@
 - Never push. User reviews work and pushes to remote.
 - When branching is requested, use standard GitFlow: `main`, `develop`, `feature/*`, `release/*`, `hotfix/*`.
 
+## Machine Context
+
+- Fresh session should invoke project command `/bigpc` or `/smallpc`. If neither profile is stated, ask once before resource-heavy work; do not infer from repository files.
+- Commands set conversation context only. Live `uname`, CPU/RAM/disk, and Docker-visible resources override profile expectations. Details: `docs/agents/machine-profiles.md`.
+- `bigpc`: Windows host; run everything inside Void Linux WSL2; 16 CPU cores, 16 GiB RAM, GPU; keep clone in WSL filesystem, not `/mnt/c`.
+- `smallpc`: native Void Linux; 4 CPU cores, 3.8 GiB RAM, no swap; expect staged or stage-by-stage execution.
+- GPU is not part of Assignment 1. Never add GPU/CUDA dependencies based only on `/bigpc`.
+
 ## Scope And Sources
 
 - This repo demos both assignments in `Docs/Data_Engineering_Assessments.docx.txt`; neither assignment is optional.
@@ -29,7 +37,7 @@
 
 ## Current State
 
-- Repo currently contains documentation only: no manifests, source, CI, tests, formatter, or verified developer commands. Do not invent commands.
+- Repo currently contains documentation plus project-local OpenCode machine-profile commands; no application manifests, source, CI, tests, formatter, or verified developer commands. Do not invent application commands.
 - When adding first executable tooling, document exact setup, focused test, lint, typecheck, run, and teardown commands in relevant README; update this file with non-obvious command order or prerequisites.
 
 ## GitHub And Domain Docs
