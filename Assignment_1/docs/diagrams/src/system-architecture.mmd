@@ -1,0 +1,56 @@
+graph TB
+    subgraph "Host (WSL2 / Native Linux)"
+        browser["Browser<br/>localhost:8443"]
+    end
+
+    subgraph "kind Cluster"
+        subgraph "ingress"
+            traefik["Traefik<br/>:8443"]
+            coredns["CoreDNS<br/>*.taxi.localhost → Traefik"]
+        end
+
+        subgraph "identity"
+            dex["Dex<br/>OIDC Provider"]
+            oauth2["oauth2-proxy<br/>ForwardAuth"]
+        end
+
+        subgraph "data-platform"
+            airflow["Airflow<br/>KubernetesExecutor"]
+            cnpg["CloudNativePG<br/>PostgreSQL"]
+            pgbouncer["PgBouncer<br/>Connection Pool"]
+            minio["MinIO<br/>S3 Object Store"]
+        end
+
+        subgraph "monitoring"
+            prometheus["Prometheus<br/>+ Alertmanager"]
+            grafana["Grafana"]
+            loki["Loki<br/>+ Grafana Alloy"]
+        end
+
+        subgraph "taxi-app"
+            streamlit["Streamlit<br/>Dashboard"]
+            webhook["Webhook<br/>Receiver"]
+            mailpit["Mailpit<br/>SMTP"]
+        end
+    end
+
+    browser -->|"HTTPS :8443"| traefik
+    traefik --> dex
+    traefik --> oauth2
+    oauth2 --> streamlit
+    oauth2 --> webhook
+    oauth2 --> mailpit
+    traefik --> airflow
+    traefik --> grafana
+    traefik --> minio
+    traefik --> prometheus
+
+    airflow -->|"COPY/Query"| pgbouncer
+    airflow -->|"S3 API"| minio
+    airflow -->|"StatsD"| prometheus
+    streamlit -->|"Read-only"| pgbouncer
+    pgbouncer --> cnpg
+    loki -->|"Chunks"| minio
+    cnpg -->|"Backup"| minio
+
+    airflow -->|"curl download"| internet["TLC CloudFront<br/>Parquet Source"]

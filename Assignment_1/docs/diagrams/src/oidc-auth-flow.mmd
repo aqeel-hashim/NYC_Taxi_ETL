@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant Host as Host Browser
+    participant Traefik as Traefik Ingress
+    participant OAuth2 as oauth2-proxy
+    participant Dex as Dex OIDC
+    participant Service as Protected Service
+
+    Host->>Traefik: GET https://streamlit.taxi.localhost:8443
+    Traefik->>OAuth2: ForwardAuth check
+    OAuth2-->>Traefik: 401 (no session)
+    Traefik->>Host: 302 Redirect to /oauth2/start
+
+    Host->>OAuth2: GET /oauth2/start
+    OAuth2->>Host: 302 Redirect to Dex /auth
+
+    Host->>Dex: GET /auth?client_id=...&redirect_uri=...
+    Dex->>Host: Login form / static password
+    Host->>Dex: POST credentials
+
+    Dex->>OAuth2: 302 redirect with auth code
+    OAuth2->>Dex: POST /token (code exchange)
+    Dex->>OAuth2: id_token + access_token + refresh_token
+
+    OAuth2->>Host: Set session cookie, redirect to original URL
+    Host->>Traefik: GET https://streamlit.taxi.localhost:8443
+    Traefik->>OAuth2: ForwardAuth (with cookie)
+    OAuth2->>Dex: Validate session / userinfo
+    Dex->>OAuth2: User info + groups claim
+    OAuth2->>Traefik: 202 Accepted + X-Forwarded-User headers
+
+    Traefik->>Service: Proxy request + identity headers
+    Service->>Traefik: Response
+    Traefik->>Host: Response

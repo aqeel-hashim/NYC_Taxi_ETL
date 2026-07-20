@@ -1,0 +1,35 @@
+graph TB
+    sensor["Source Sensor<br/>Hourly reschedule<br/>Max 7 days"]
+    download["Download Parquet<br/>BashOperator + curl<br/>Validate checksum"]
+    contract["Validate Contract<br/>Schema fingerprint<br/>Row count check"]
+    reference["Resolve References<br/>Taxi zones, vendors<br/>Payment types, rate codes"]
+    scd2["Sync SCD2<br/>Upsert dimensions<br/>Pin snapshot"]
+    threshold["Resolve Threshold<br/>Active KLL version<br/>2023-baseline-v1"]
+
+    transform["Transform<br/>(Polars, bounded batches)<br/>Clean → Convert → Flag"]
+    quality["Quality Gates<br/>Zero rows? Reject rate?<br/>Warn >1%, Fail >5%"]
+    checkpoints["Write Checkpoints<br/>(MinIO)<br/>Accepted / Issues / Quarantine"]
+
+    load["Load Partitions<br/>psycopg COPY<br/>Replacement fact + mart"]
+    validate["Validate<br/>source = accepted + rejected<br/>FKs, sums, bounds"]
+    publish["Atomic Publish<br/>Detach old → Attach new<br/>Increment warehouse version"]
+    smoke["Post-Publish Smoke<br/>Required SQL<br/>Query budgets"]
+
+    metrics["Push Metrics<br/>(Pushgateway)"]
+
+    sensor --> download
+    download --> contract
+    contract --> reference
+    contract --> threshold
+    reference --> scd2
+    scd2 --> transform
+    threshold --> transform
+    transform --> quality
+    quality -->|"Pass"| checkpoints
+    quality -->|"Fail"| alert_fail["Alert + Fail Task"]
+    checkpoints --> load
+    load --> validate
+    validate --> publish
+    publish --> smoke
+    smoke --> metrics
+    smoke --> cleanup["Cleanup Old Partitions<br/>(after smoke passes)"]

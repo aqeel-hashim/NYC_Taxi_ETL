@@ -1,0 +1,19 @@
+graph LR
+    fact["fact_taxi_trips<br/>━━━━━━━━━━<br/>trip_key (PK)<br/>pickup_date_key (PK)<br/>dropoff_date_key<br/>pickup_time_key<br/>dropoff_time_key<br/>pickup_zone_key<br/>dropoff_zone_key<br/>payment_type_key<br/>vendor_key<br/>rate_code_key<br/>pickup_at_local<br/>dropoff_at_local<br/>duration_seconds<br/>passenger_count<br/>distance_millimiles<br/>fare_amount_cents<br/>extra_cents<br/>mta_tax_cents<br/>tip_amount_cents<br/>tolls_amount_cents<br/>improvement_surcharge_cents<br/>total_amount_cents<br/>congestion_surcharge_cents<br/>airport_fee_cents<br/>store_and_fwd_flag<br/>has_statistical_outlier<br/>has_quality_issue<br/>source_asset_id<br/>source_row_number"]
+
+    dim_date["dim_date<br/>━━━━━━<br/>date_key (PK)<br/>calendar_date<br/>year<br/>quarter<br/>month<br/>month_name<br/>iso_week<br/>day_of_week<br/>weekday_name<br/>is_weekend"]
+    dim_time["dim_time<br/>━━━━━━<br/>time_key (PK)<br/>hour<br/>minute<br/>quarter_hour<br/>hour_label<br/>daypart"]
+    dim_zone["dim_taxi_zone<br/>━━━━━━━━━<br/>zone_key (PK)<br/>location_id<br/>borough<br/>zone_name<br/>service_zone<br/>observed_from<br/>observed_to<br/>is_current"]
+    dim_payment["dim_payment_type<br/>━━━━━━━━━━━━<br/>payment_key (PK)<br/>payment_code<br/>payment_label<br/>observed_from<br/>observed_to<br/>is_current"]
+    dim_vendor["dim_vendor<br/>━━━━━━━━<br/>vendor_key (PK)<br/>vendor_code<br/>vendor_label<br/>observed_from<br/>observed_to<br/>is_current"]
+    dim_rate["dim_rate_code<br/>━━━━━━━━━━<br/>rate_key (PK)<br/>rate_code<br/>rate_label<br/>observed_from<br/>observed_to<br/>is_current"]
+
+    fact -->|pickup| dim_date
+    fact -->|dropoff| dim_date
+    fact -->|pickup| dim_time
+    fact -->|dropoff| dim_time
+    fact -->|pickup| dim_zone
+    fact -->|dropoff| dim_zone
+    fact --> dim_payment
+    fact --> dim_vendor
+    fact --> dim_rate
