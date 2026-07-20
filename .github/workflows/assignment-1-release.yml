@@ -1,0 +1,47 @@
+name: Assignment 1 Release
+
+on:
+  push:
+    branches: ["release/*"]
+
+defaults:
+  run:
+    working-directory: Assignment_1
+
+jobs:
+  ci:
+    uses: ./.github/workflows/assignment-1-ci.yml
+
+  build-images:
+    needs: ci
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        image: [airflow, dashboard, alert-receiver]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2  # v3.10.0
+      - uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96  # v5.6.1
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          tags: type=sha,prefix=
+      - uses: docker/build-push-action@ca877d9245402d1537745e0e356eab328c506099  # v6.13.0
+        with:
+          context: Assignment_1
+          file: Assignment_1/docker/${{ matrix.image }}.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+  release:
+    needs: build-images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - run: |
+          echo "## Release $(date -I)" >> $GITHUB_STEP_SUMMARY
+          echo "Images pushed to ghcr.io" >> $GITHUB_STEP_SUMMARY
