@@ -1,0 +1,82 @@
+"""Quality issue codes and rule definitions."""
+
+from enum import StrEnum
+
+# Issue Enum definitions
+
+
+class IssueCode(StrEnum):
+    MISSING_PICKUP = "MISSING_PICKUP"
+    MISSING_DROPOFF = "MISSING_DROPOFF"
+    MISSING_DISTANCE = "MISSING_DISTANCE"
+    MISSING_FARE = "MISSING_FARE"
+    MISSING_TOTAL = "MISSING_TOTAL"
+    NON_POSITIVE_DISTANCE = "NON_POSITIVE_DISTANCE"
+    NEGATIVE_FARE = "NEGATIVE_FARE"
+    NEGATIVE_TOTAL = "NEGATIVE_TOTAL"
+    PICKUP_BEFORE_MONTH = "PICKUP_BEFORE_MONTH"
+    PICKUP_AFTER_MONTH = "PICKUP_AFTER_MONTH"
+    DROPOFF_BEFORE_PICKUP = "DROPOFF_BEFORE_PICKUP"
+    DROPOFF_AFTER_WINDOW = "DROPOFF_AFTER_WINDOW"
+    UNKNOWN_VENDOR = "UNKNOWN_VENDOR"
+    UNKNOWN_PAYMENT = "UNKNOWN_PAYMENT"
+    UNKNOWN_RATE = "UNKNOWN_RATE"
+    UNKNOWN_PICKUP_ZONE = "UNKNOWN_PICKUP_ZONE"
+    UNKNOWN_DROPOFF_ZONE = "UNKNOWN_DROPOFF_ZONE"
+    INVALID_PASSENGER_COUNT = "INVALID_PASSENGER_COUNT"
+    NULL_FARE = "NULL_FARE"
+    NULL_DISTANCE = "NULL_DISTANCE"
+    NULL_TOTAL = "NULL_TOTAL"
+    NULL_MTA_TAX = "NULL_MTA_TAX"
+    NULL_TIP = "NULL_TIP"
+    NULL_TOLLS = "NULL_TOLLS"
+    NULL_EXTRA = "NULL_EXTRA"
+    NULL_IMPROVEMENT = "NULL_IMPROVEMENT"
+    NULL_CONGESTION = "NULL_CONGESTION"
+    NULL_AIRPORT_FEE = "NULL_AIRPORT_FEE"
+    STAT_OUTLIER_DURATION = "STAT_OUTLIER_DURATION"
+    STAT_OUTLIER_DISTANCE = "STAT_OUTLIER_DISTANCE"
+    STAT_OUTLIER_SPEED = "STAT_OUTLIER_SPEED"
+    STAT_OUTLIER_FARE_PER_MILE = "STAT_OUTLIER_FARE_PER_MILE"
+
+    @classmethod
+    def rejection_codes(cls) -> set["IssueCode"]:
+        return {
+            cls.MISSING_PICKUP,
+            cls.MISSING_DROPOFF,
+            cls.MISSING_DISTANCE,
+            cls.MISSING_FARE,
+            cls.MISSING_TOTAL,
+            cls.NON_POSITIVE_DISTANCE,
+            cls.NEGATIVE_FARE,
+            cls.NEGATIVE_TOTAL,
+            cls.PICKUP_BEFORE_MONTH,
+            cls.PICKUP_AFTER_MONTH,
+            cls.DROPOFF_BEFORE_PICKUP,
+            cls.DROPOFF_AFTER_WINDOW,
+        }
+
+    @classmethod
+    def flag_codes(cls) -> set["IssueCode"]:
+        return {
+            cls.UNKNOWN_VENDOR,
+            cls.UNKNOWN_PAYMENT,
+            cls.UNKNOWN_RATE,
+            cls.UNKNOWN_PICKUP_ZONE,
+            cls.UNKNOWN_DROPOFF_ZONE,
+            cls.INVALID_PASSENGER_COUNT,
+            cls.NULL_FARE,
+            cls.NULL_DISTANCE,
+            cls.NULL_TOTAL,
+            cls.NULL_MTA_TAX,
+            cls.NULL_TIP,
+            cls.NULL_TOLLS,
+            cls.NULL_EXTRA,
+            cls.NULL_IMPROVEMENT,
+            cls.NULL_CONGESTION,
+            cls.NULL_AIRPORT_FEE,
+            cls.STAT_OUTLIER_DURATION,
+            cls.STAT_OUTLIER_DISTANCE,
+            cls.STAT_OUTLIER_SPEED,
+            cls.STAT_OUTLIER_FARE_PER_MILE,
+        }
