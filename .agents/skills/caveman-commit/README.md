@@ -1,12 +1,12 @@
 # caveman-commit
 
-Terse Conventional Commits. Why over what.
+Terse Conventional Commits. Why > what.
 
 ## What it does
 
-Generates commit messages in Conventional Commits format. Subject ≤50 chars, hard cap 72. Imperative mood. Body only when the *why* is non-obvious or there are breaking changes. No AI attribution, no "this commit does X", no emoji unless the project uses them. Body always required for breaking changes, security fixes, data migrations, and reverts — future debuggers need the context.
+Makes Conventional Commits messages. Subject ≤50 chars, hard cap 72. Imperative. Body only if *why* unclear or breaking change. No AI credit, \"this commit does X\", emoji unless project uses. Body mandatory for breaking changes, security fixes, data migrations, reverts — future debuggers need context.
 
-Outputs only the message. Does not stage, commit, or amend.
+Outputs message only. No stage, commit, amend.
 
 ## How to invoke
 
@@ -14,11 +14,11 @@ Outputs only the message. Does not stage, commit, or amend.
 /caveman-commit
 ```
 
-Also triggers on phrases like "write a commit", "commit message", "generate commit".
+Also triggers on \"write a commit\", \"commit message\", \"generate commit\".
 
 ## Example output
 
-Diff: new endpoint for user profile.
+Diff: user profile endpoint.
 
 ```
 feat(api): add GET /users/:id/profile
@@ -40,5 +40,5 @@ before 2026-06-01. Old route returns 410 after that date.
 
 ## See also
 
-- [`SKILL.md`](./SKILL.md) — full LLM-facing instructions
+- [`SKILL.md`](./SKILL.md) — full LLM instructions
 - [Caveman README](../../README.md) — repo overview

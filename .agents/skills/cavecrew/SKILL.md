@@ -10,30 +10,29 @@ description: >
   Trigger: "delegate to subagent", "use cavecrew", "spawn investigator/builder/reviewer",
   "save context", "compressed agent output".
 ---
-
-Cavecrew = three subagent presets that emit caveman output. Same job as Anthropic defaults (`Explore`, edit-style agents, reviewer); difference is the tool-result they return is compressed, so main context shrinks per delegation.
+Cavecrew = three caveman-output subagent presets. Same jobs as Anthropic defaults (`Explore`, edit-style agents, reviewer), but compressed tool results shrink main context.
 
 ## When to use cavecrew vs alternatives
 
 | Task | Use |
 |---|---|
-| "Where is X defined / what calls Y / list uses of Z" | `cavecrew-investigator` |
-| Same but you also want suggestions/architecture commentary | `Explore` (vanilla) |
-| Surgical edit, ≤2 files, scope obvious | `cavecrew-builder` |
+| \"Find X definition / Y callers / Z uses\" | `cavecrew-investigator` |
+| Same + suggestions/architecture | `Explore` (vanilla) |
+| Surgical edit, ≤2 files, obvious scope | `cavecrew-builder` |
 | New feature / 3+ files / cross-cutting refactor | Main thread or `feature-dev:code-architect` |
 | Review diff, branch, or file for bugs | `cavecrew-reviewer` |
-| Deep code review with rationale + alternatives | `Code Reviewer` (vanilla) |
-| One-line answer you already know | Main thread, no subagent |
+| Deep review with rationale + alternatives | `Code Reviewer` (vanilla) |
+| Known one-line answer | Main thread, no subagent |
 
-Rule of thumb: **if you'd want the subagent's output in 1/3 the tokens, pick cavecrew. If you'd want prose, pick vanilla.**
+Rule: **want output in 1/3 tokens: cavecrew. Want prose: vanilla.**
 
 ## Why this exists (the real win)
 
-Subagent tool results get injected into main context verbatim. A vanilla `Explore` that returns 2k tokens of prose costs 2k tokens of main-context budget every time. The same finding from `cavecrew-investigator` returns ~700 tokens. Across 20 delegations in one session that's the difference between context exhaustion and finishing the task.
+Subagent results enter main context verbatim. Vanilla `Explore` returning 2k prose tokens costs 2k main-context tokens each time. `cavecrew-investigator` gives same finding in ~700. Across 20 delegations: context exhaustion vs task completion.
 
 ## Output contracts
 
-What main thread can rely on per agent:
+Main thread may rely on:
 
 **`cavecrew-investigator`**
 ```
@@ -41,42 +40,42 @@ What main thread can rely on per agent:
 - path:line — `symbol` — short note
 totals: <counts>.
 ```
-Or `No match.` Always file-path-first, line-number-attached, backticked symbols. Safe to grep with `path:\d+`.
+Or `No match.` Always path-first, line-attached, backticked symbols. Grep-safe with `path:\d+`.
 
 **`cavecrew-builder`**
 ```
 <path:line-range> — <change ≤10 words>.
 verified: <re-read OK | mismatch @ path:line>.
 ```
-Or one of: `too-big.` / `needs-confirm.` / `ambiguous.` / `regressed.` (terminal first token).
+Or: `too-big.` / `needs-confirm.` / `ambiguous.` / `regressed.` (terminal first token).
 
 **`cavecrew-reviewer`**
 ```
 path:line: <emoji> <severity>: <problem>. <fix>.
 totals: N🔴 N🟡 N🔵 N❓
 ```
-Or `No issues.` Findings sorted file → line ascending.
+Or `No issues.` Findings sorted file → ascending line.
 
 ## Chaining patterns
 
-**Locate → fix → verify** (most common):
-1. `cavecrew-investigator` returns site list.
-2. Main thread picks 1-2 sites, hands paths to `cavecrew-builder`.
-3. `cavecrew-reviewer` audits the diff.
+**Locate → fix → verify** (common):
+1. `cavecrew-investigator` returns sites.
+2. Main thread selects 1-2; gives paths to `cavecrew-builder`.
+3. `cavecrew-reviewer` audits diff.
 
-**Parallel scout** (when investigation is broad):
-Spawn 2-3 `cavecrew-investigator` calls in one message (different angles: defs vs callers vs tests). Aggregate in main thread.
+**Parallel scout** (broad investigation):
+Spawn 2-3 `cavecrew-investigator` calls together, different angles: defs, callers, tests. Main thread aggregates.
 
-**Single-shot edit** (when site is already known):
-Skip investigator. Hand exact path:line to `cavecrew-builder` directly.
+**Single-shot edit** (known site):
+Skip investigator. Give exact path:line directly to `cavecrew-builder`.
 
 ## What NOT to do
 
-- Don't use `cavecrew-builder` when you don't already know the file. Spawn investigator first or main thread will eat tokens passing context.
-- Don't chain `cavecrew-investigator → cavecrew-builder` for a 5-file refactor. Builder will return `too-big.` and you'll have wasted a turn.
-- Don't ask `cavecrew-reviewer` for "general feedback" — it returns findings only, no architecture opinions. Use `Code Reviewer` for that.
-- Don't expect prose. Cavecrew output is structured, sometimes terse to the point of cryptic. If a human will read it directly, paraphrase.
+- Don't use `cavecrew-builder` without known file. First investigator, else main thread wastes context.
+- Don't chain `cavecrew-investigator → cavecrew-builder` for 5-file refactor. Builder returns `too-big.`; turn wasted.
+- Don't ask `cavecrew-reviewer` for \"general feedback\". Findings only, no architecture opinions. Use `Code Reviewer`.
+- Don't expect prose. Output structured, terse, maybe cryptic. If human reads directly, paraphrase.
 
 ## Auto-clarity (inherited)
 
-Subagents drop caveman → normal English for security warnings, irreversible-action confirmations, and any output where fragment ambiguity could be misread. Resume caveman after.
+Subagents switch caveman → normal English for security warnings, irreversible-action confirmations, or ambiguity-risk output. Then resume caveman.
