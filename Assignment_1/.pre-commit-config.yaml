@@ -1,0 +1,39 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^Assignment_1/
+      - id: ruff-format
+        files: ^Assignment_1/
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        files: ^Assignment_1/src/
+        additional_dependencies:
+          - polars>=1.0
+          - psycopg[binary]>=3.2
+          - boto3>=1.35
+          - pytest>=8.3
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.3.1
+    hooks:
+      - id: sqlfluff-lint
+        args: [--dialect, postgres]
+        files: ^Assignment_1/sql/
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        exclude: ^\.agents/
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+        exclude: ^\.agents/
+      - id: trailing-whitespace
+        exclude: ^\.agents/
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=500]
