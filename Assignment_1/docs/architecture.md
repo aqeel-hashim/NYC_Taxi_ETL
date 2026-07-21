@@ -1,10 +1,10 @@
 # Architecture
 
+**Target architecture. Not yet deployed. Active implementation: Phases 5-14.**
+
 ## Local Platform
 
-namespacing allows for easier management, especially for cases where you want
-to monitor a specfic part of the stack, or gracefully restart it.
-kind cluster with five namespaces:
+Target design: kind cluster with five namespaces:
 
 | Namespace | Contents |
 |-----------|----------|

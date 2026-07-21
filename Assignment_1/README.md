@@ -1,48 +1,53 @@
 # Assignment 1: Batch ETL
 
-Status: Assignment 1 complete. Local demo runs staged on current Docker memory.
+Status: Phases 0-4 (core ETL): PASS. Phases 5-14: IN PROGRESS.
 
-## Verified Local Commands
+## Truth Matrix
 
-Run from `Assignment_1/`.
+| Phase | Description | Verifier Gate |
+|-------|-------------|---------------|
+| 0 | Architecture decisions | PASS |
+| 1 | Bootstrap toolchain | PASS |
+| 2 | Data contract, fixtures, transform | PASS |
+| 3 | KLL calibration | PARTIAL (stub) |
+| 4 | PostgreSQL schema + SQL | PASS |
+| 5 | Object storage, load, atomic publish | NOT_STARTED |
+| 6 | Airflow DAGs + runtime images | PARTIAL (import works; DAG not full) |
+| 7 | Kubernetes vertical slice | NOT_STARTED |
+| 8 | Ingress, TLS, OIDC, alerts | NOT_STARTED |
+| 9 | Monitoring, logging, recovery | NOT_STARTED |
+| 10 | Executive dashboard | PARTIAL (three-metric; not full) |
+| 11 | Complete setup + demo | PARTIAL (preflight only) |
+| 12 | CI, release, supply chain | NOT_STARTED |
+| 13 | Guarded AWS Terraform | NOT_STARTED |
+| 14 | Final docs + review | NOT_STARTED |
+
+## Verified Commands
 
 ```bash
 ./setup.sh --only preflight
 DATABASE_URL="$TEST_DATABASE_URL" .venv/bin/alembic upgrade head
 DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01 --fixture
+DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01
+DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-02
 TEST_DATABASE_URL="$TEST_DATABASE_URL" ./scripts/verify.sh
-```
-
-`./setup.sh` creates environment, starts PostgreSQL, downloads January and February 2023 with `curl`, then runs checks. Copy `.env.example` to `.env`, set `POSTGRES_PASSWORD` and `DATABASE_URL` first. Use disposable PostgreSQL harness in `../plans/001-warehouse-contract.md` for focused tests. Real loads use `./scripts/run-pipeline.sh 2023-01` and `./scripts/run-pipeline.sh 2023-02`.
-
-Airflow runtime image:
-
-```bash
 docker build -f docker/airflow.Dockerfile -t nyc-taxi-airflow:test .
-```
-
-Dashboard:
-
-```bash
 docker build -f docker/dashboard.Dockerfile -t nyc-taxi-dashboard:test .
-docker run --rm --network host -e DATABASE_URL="$TEST_DATABASE_URL" nyc-taxi-dashboard:test
 ```
-
-[Implementation plan](docs/implementation-plan.md) | [Architecture](docs/architecture.md) | [Data model](docs/data-model.md)
 
 ## Requirement Traceability
 
-| Requirement | Owner Phase |
-|-------------|-------------|
-| Bash `setup.sh`, virtual env, Docker PostgreSQL, `curl`/`wget` download | Phase 1, 11 |
-| `schema.sql` with fact table + ≥3 dimensions | Phase 4 |
-| Modern orchestrator (Airflow) | Phase 6, 7 |
-| Structured logging (start/end, row counts, errors) | Phase 6 |
-| Orchestrator alerts on failure | Phase 8, 9 |
-| SQL: average fare per mile | Phase 4 |
-| SQL: peak ride hours | Phase 4 |
-| SQL: revenue by payment type | Phase 4 |
-| Single-page Streamlit dashboard | Phase 10 |
+| Requirement | Phase | Gate |
+|-------------|-------|------|
+| Bash `setup.sh`, virtual env, Docker PostgreSQL, `curl`/`wget` download | 1, 11 | PASS |
+| `schema.sql` with fact table + ≥3 dimensions | 4 | PASS |
+| Modern orchestrator (Airflow) | 6, 7 | PARTIAL (DAGs import; no K8s) |
+| Structured logging (start/end, row counts, errors) | 6 | PASS (JSON logs) |
+| Orchestrator alerts on failure | 8, 9 | NOT_STARTED |
+| SQL: average fare per mile | 4 | PASS |
+| SQL: peak ride hours | 4 | PASS |
+| SQL: revenue by payment type | 4 | PASS |
+| Single-page Streamlit dashboard | 10 | PARTIAL (three-metric; five-tab pending) |
 
 ## Agreed Assumptions
 

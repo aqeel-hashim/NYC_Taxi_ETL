@@ -37,8 +37,9 @@
 
 ## Current State
 
-- Repo currently contains documentation plus project-local OpenCode machine-profile commands; no application manifests, source, CI, tests, formatter, or verified developer commands. Do not invent application commands.
-- When adding first executable tooling, document exact setup, focused test, lint, typecheck, run, and teardown commands in relevant README; update this file with non-obvious command order or prerequisites.
+- `feature/assignment-1` active. Core batch ETL exists (pipeline, loader, fixture, two-month download). Kubernetes, MinIO, OIDC, observability, AWS, final dashboard, backup/restore remain unimplemented. Phases 5-14 in active build.
+- Verified commands: `./setup.sh --only preflight`, `./scripts/run-pipeline.sh YYYY-MM [--fixture]`, `./scripts/verify.sh`. Exact full verification listed in `Assignment_1/README.md`.
+- GitFlow enforced. Never push; user reviews. `uv lock`, `uv sync --frozen --all-groups`, `uv run ruff check .`, `uv run mypy src tests`, `uv run pytest` pass.
 
 ## GitHub And Domain Docs
 

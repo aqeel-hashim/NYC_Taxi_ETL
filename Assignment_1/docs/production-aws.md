@@ -1,5 +1,7 @@
 # AWS Production Deployment
 
+**Target architecture for Phase 13. Static/speculative plan only. No deployed infrastructure.**
+
 ## Prerequisites
 
 - AWS account with admin access

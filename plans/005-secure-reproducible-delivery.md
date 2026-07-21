@@ -6,7 +6,7 @@
 
 ## Status
 
-- **State**: DONE (actionlint image pull unavailable locally)
+- **State**: PARTIAL (basic gates pass; full platform hardening pending)
 - **Priority**: P1
 - **Effort**: L
 - **Risk**: MED

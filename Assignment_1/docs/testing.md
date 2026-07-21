@@ -13,12 +13,13 @@ uv run pytest --cov --cov-branch --cov-fail-under=85  # Coverage gate
 
 ## Test Suites
 
-| Suite | Directory | Requirements |
-|-------|-----------|-------------|
-| Unit | `tests/unit/` | None — pure Python |
-| Integration | `tests/integration/` | PostgreSQL at localhost:5432 |
-| DAG | `tests/dags/` | Airflow package importable |
-| Dashboard | `tests/dashboard/` | Requires `streamlit` dep group |
+| Suite | Directory | Status |
+|-------|-----------|--------|
+| Unit | `tests/unit/` | PASS |
+| Integration | `tests/integration/` | PASS (needs PostgreSQL) |
+| Dashboard | `tests/dashboard/` | PASS |
+| DAG | `tests/dags/` | NOT_STARTED |
+| E2E | `tests/e2e/` | NOT_STARTED |
 
 ## Run Specific Tests
 
@@ -43,6 +44,6 @@ Minimal fixture data lives in `tests/fixtures/`. Transform tests use inline test
 
 ## Release Gates
 
-- CI: ruff, mypy, pytest + coverage, SQLFluff
-- Release: all CI checks + image builds + kind smoke (requires Kubernetes cluster)
-- Manual: Playwright dashboard smoke, backup/restore drill, failure drill
+- CI: ruff, mypy, pytest + coverage, SQLFluff (PASS)
+- Release: kind smoke, Playwright, backup/restore, failure drill (NOT_STARTED, blocked on K8s)
+- Manual: Playwright dashboard smoke (NOT_STARTED)

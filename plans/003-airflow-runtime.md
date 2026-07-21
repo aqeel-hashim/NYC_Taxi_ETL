@@ -6,7 +6,7 @@
 
 ## Status
 
-- **State**: DONE
+- **State**: PARTIAL (DAGs import and fixture run passes; full task graph and K8s pending)
 - **Priority**: P1
 - **Effort**: L
 - **Risk**: HIGH

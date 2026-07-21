@@ -6,7 +6,7 @@
 
 ## Status
 
-- **State**: DONE
+- **State**: PARTIAL (three-metric page works; five-tab full dashboard pending)
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: MED
