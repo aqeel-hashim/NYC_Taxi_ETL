@@ -12,9 +12,15 @@ uv run ruff format --check . || { log_error "Ruff format failed"; exit 1; }
 uv run mypy src tests || { log_error "mypy checks failed"; exit 1; }
 uv run pytest --cov --cov-branch --cov-report=term --cov-fail-under=85 || { log_error "Tests failed"; exit 1; }
 uv run sqlfluff lint sql/queries --dialect postgres || { log_error "SQL lint failed"; exit 1; }
+docker compose --env-file .env.example -f infra/local/compose.postgres.yaml config --quiet || {
+  log_error "Compose config failed"
+  exit 1
+}
+./scripts/check-docker-context.sh >/dev/null || { log_error "Docker context too large"; exit 1; }
 
 if [[ -n "${TEST_DATABASE_URL:-}" ]]; then
   uv run pytest tests/integration/test_warehouse_contract.py -q || { log_error "Warehouse contract failed"; exit 1; }
+  uv run pytest tests/integration/test_database_roles.py -q || { log_error "Database role contract failed"; exit 1; }
 else
   log_info "Skipping warehouse contract: TEST_DATABASE_URL not set"
 fi

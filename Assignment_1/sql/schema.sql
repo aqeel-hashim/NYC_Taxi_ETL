@@ -4665,4 +4665,39 @@ INSERT INTO warehouse.dim_rate_code (surrogate_key, business_key, label, observe
 
 INSERT INTO alembic_version (version_num) VALUES ('0001') RETURNING alembic_version.version_num;
 
+-- Running upgrade 0001 -> 0002
+
+DO $$ BEGIN CREATE ROLE taxi_migrator; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE ROLE taxi_loader; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE ROLE taxi_dashboard_readonly; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+GRANT USAGE ON SCHEMA warehouse TO taxi_dashboard_readonly;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA warehouse TO taxi_dashboard_readonly;
+
+GRANT USAGE ON SCHEMA analytics TO taxi_dashboard_readonly;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO taxi_dashboard_readonly;
+
+GRANT USAGE ON SCHEMA warehouse, analytics, ops TO taxi_loader;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA warehouse, analytics, ops TO taxi_loader;
+
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA warehouse, analytics, ops TO taxi_loader;
+
+CREATE OR REPLACE VIEW analytics.dashboard_revenue_by_payment_type AS
+        SELECT p.business_key AS payment_type_key, p.label AS payment_type_label,
+            ROUND(SUM(f.total_amount_cents)::numeric / 100.0, 2) AS total_revenue_dollars,
+            COUNT(*) AS trip_count
+        FROM warehouse.fact_taxi_trips AS f
+        INNER JOIN warehouse.dim_payment_type AS p ON f.payment_type_key = p.surrogate_key
+        WHERE NOT f.has_statistical_outlier
+        GROUP BY p.business_key, p.label;
+
+GRANT SELECT ON analytics.dashboard_revenue_by_payment_type TO taxi_dashboard_readonly;
+
+UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
+
 COMMIT;
