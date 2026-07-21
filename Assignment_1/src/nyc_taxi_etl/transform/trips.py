@@ -169,7 +169,7 @@ def transform(
         source_rows=source_rows,
         accepted_rows=len(accepted),
         rejected_rows=len(rejected),
-        flagged_rows=len(issues),
+        flagged_rows=issues["source_row_number"].n_unique() if len(issues) else 0,
         source_month=source_month,
     )
 

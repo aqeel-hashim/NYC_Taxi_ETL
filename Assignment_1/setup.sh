@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # sourcing logging helpers
-source "${SCRIPT_DIR}/lib/logging.sh"
+source "${SCRIPT_DIR}/scripts/lib/logging.sh"
 
 PROFILE="${PROFILE:-auto}"
 TOOLS="${TOOLS:-core}"
@@ -17,11 +17,28 @@ log_info "NYC Taxi ETL Setup"
 log_info "Profile: ${PROFILE}"
 log_info "Project: ${REPO_ROOT}"
 
+usage() {
+    echo "Usage: ./setup.sh [--profile auto|staged|concurrent] [--from STAGE|--only STAGE] [--non-interactive]"
+}
+
+ONLY_STAGE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --profile) PROFILE="${2:-}"; shift 2 ;;
+        --from) START_STAGE="${2:-}"; shift 2 ;;
+        --only) ONLY_STAGE="${2:-}"; START_STAGE="${ONLY_STAGE}"; shift 2 ;;
+        --non-interactive) NON_INTERACTIVE="true"; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+
 # docker and curl validation. and also system mem check for staged vs full execution
 preflight() {
     log_info "=== Preflight ==="
     command -v docker >/dev/null 2>&1 || { log_error "Docker required"; exit 1; }
     command -v curl >/dev/null 2>&1 || { log_error "curl required"; exit 1; }
+    command -v uv >/dev/null 2>&1 || [[ -x .tools/uv ]] || { log_error "uv required"; exit 1; }
 
     local cpu mem
     cpu=$(docker info --format '{{.NCPU}}' 2>/dev/null || echo 0)
@@ -92,6 +109,7 @@ main() {
         fi
         if $started; then
             $stage
+            [[ -z "${ONLY_STAGE}" ]] || break
         fi
     done
     log_success "Setup complete"

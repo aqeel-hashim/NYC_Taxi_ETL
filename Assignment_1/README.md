@@ -1,6 +1,19 @@
 # Assignment 1: Batch ETL
 
-Status: Phase 0 — architecture decisions recorded. Implementation begins Phase 1.
+Status: Assignment 1 warehouse contract works; local ETL vertical slice in progress.
+
+## Verified Local Commands
+
+Run from `Assignment_1/`.
+
+```bash
+./setup.sh --only preflight
+DATABASE_URL="$TEST_DATABASE_URL" .venv/bin/alembic upgrade head
+DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01 --fixture
+TEST_DATABASE_URL="$TEST_DATABASE_URL" ./scripts/verify.sh
+```
+
+Use the disposable PostgreSQL harness in `../plans/001-warehouse-contract.md` for `TEST_DATABASE_URL`. Real January load uses the same command without `--fixture`; Kubernetes, Airflow runtime images, dashboard, and AWS remain planned.
 
 [Implementation plan](docs/implementation-plan.md) | [Architecture](docs/architecture.md) | [Data model](docs/data-model.md)
 
