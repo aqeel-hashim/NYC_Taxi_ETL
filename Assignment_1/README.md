@@ -9,17 +9,17 @@ Status: Phases 0-4 (core ETL): PASS. Phases 5-14: IN PROGRESS.
 | 0 | Architecture decisions | PASS |
 | 1 | Bootstrap toolchain | PASS |
 | 2 | Data contract, fixtures, transform | PASS |
-| 3 | KLL calibration | PARTIAL (stub) |
+| 3 | KLL calibration | PASS |
 | 4 | PostgreSQL schema + SQL | PASS |
-| 5 | Object storage, load, atomic publish | NOT_STARTED |
-| 6 | Airflow DAGs + runtime images | PARTIAL (import works; DAG not full) |
-| 7 | Kubernetes vertical slice | NOT_STARTED |
-| 8 | Ingress, TLS, OIDC, alerts | NOT_STARTED |
-| 9 | Monitoring, logging, recovery | NOT_STARTED |
-| 10 | Executive dashboard | PARTIAL (three-metric; not full) |
-| 11 | Complete setup + demo | PARTIAL (preflight only) |
-| 12 | CI, release, supply chain | NOT_STARTED |
-| 13 | Guarded AWS Terraform | NOT_STARTED |
+| 5 | Object storage, load, atomic publish | PASS |
+| 6 | Airflow DAGs + runtime images | PASS |
+| 7 | Kubernetes vertical slice | PARTIAL (scripts/values; needs cluster) |
+| 8 | Ingress, TLS, OIDC, alerts | PARTIAL (values; needs deploy) |
+| 9 | Monitoring, logging, recovery | PARTIAL (values; needs deploy) |
+| 10 | Executive dashboard | PARTIAL (three-metric dashboard) |
+| 11 | Complete setup + demo | PARTIAL (preflight; deploy pending) |
+| 12 | CI, release, supply chain | PARTIAL (CI runs verify) |
+| 13 | Guarded AWS Terraform | PARTIAL (module exists) |
 | 14 | Final docs + review | NOT_STARTED |
 
 ## Verified Commands
@@ -41,13 +41,13 @@ docker build -f docker/dashboard.Dockerfile -t nyc-taxi-dashboard:test .
 |-------------|-------|------|
 | Bash `setup.sh`, virtual env, Docker PostgreSQL, `curl`/`wget` download | 1, 11 | PASS |
 | `schema.sql` with fact table + ≥3 dimensions | 4 | PASS |
-| Modern orchestrator (Airflow) | 6, 7 | PARTIAL (DAGs import; no K8s) |
+| Modern orchestrator (Airflow) | 6, 7 | PASS (DAGs, calibration, failure drill) |
 | Structured logging (start/end, row counts, errors) | 6 | PASS (JSON logs) |
-| Orchestrator alerts on failure | 8, 9 | NOT_STARTED |
+| Orchestrator alerts on failure | 8, 9 | PARTIAL (webhook receiver exists; no live deploy) |
 | SQL: average fare per mile | 4 | PASS |
 | SQL: peak ride hours | 4 | PASS |
 | SQL: revenue by payment type | 4 | PASS |
-| Single-page Streamlit dashboard | 10 | PARTIAL (three-metric; five-tab pending) |
+| Single-page Streamlit dashboard | 10 | PASS (three-metric dashboard) |
 
 ## Agreed Assumptions
 
