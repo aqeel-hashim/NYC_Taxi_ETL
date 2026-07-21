@@ -21,6 +21,13 @@ Airflow runtime image:
 docker build -f docker/airflow.Dockerfile -t nyc-taxi-airflow:test .
 ```
 
+Dashboard:
+
+```bash
+docker build -f docker/dashboard.Dockerfile -t nyc-taxi-dashboard:test .
+docker run --rm --network host -e DATABASE_URL="$TEST_DATABASE_URL" nyc-taxi-dashboard:test
+```
+
 [Implementation plan](docs/implementation-plan.md) | [Architecture](docs/architecture.md) | [Data model](docs/data-model.md)
 
 ## Requirement Traceability
