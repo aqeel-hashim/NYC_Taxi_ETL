@@ -9,14 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
 
 import polars as pl
 
 from nyc_taxi_etl.quality.issues import IssueCode
-
-if TYPE_CHECKING:
-    pass
+from nyc_taxi_etl.quality.kll import DEFAULT_K, ThresholdBounds, build_sketch_from_iterable, compute_bounds
 
 MONTH_WINDOW_HOURS = 24  # dropoff allowed within 24h after month end
 
@@ -79,6 +76,24 @@ def transform(
         _rej_total_bad=raw["total_amount"].is_not_null() & (raw["total_amount"] < 0.0),
     )
 
+    non_finite_cols = [
+        "trip_distance",
+        "fare_amount",
+        "total_amount",
+        "extra",
+        "mta_tax",
+        "tip_amount",
+        "tolls_amount",
+        "improvement_surcharge",
+        "congestion_surcharge",
+        "airport_fee",
+    ]
+    for col in non_finite_cols:
+        if col in raw:
+            raw = raw.with_columns(
+                (pl.col(col).is_not_null() & ~pl.col(col).is_finite()).alias(f"_rej_nonfinite_{col}")
+            )
+
     raw = raw.with_columns(
         _rej_month_before=raw["_pickup"].is_not_null() & (raw["_pickup"] < month_start),
         _rej_month_after=raw["_pickup"].is_not_null() & (raw["_pickup"] >= month_end),
@@ -107,6 +122,7 @@ def transform(
         "_rej_dropoff_before",
         "_rej_dropoff_window",
     ]
+    rejection_columns.extend(f"_rej_nonfinite_{col}" for col in non_finite_cols if f"_rej_nonfinite_{col}" in raw)
 
     raw = raw.with_columns(pl.any_horizontal(rejection_columns).alias("_is_rejected"))
 
@@ -159,8 +175,11 @@ def transform(
     flagged_candidates = candidates.filter(pl.col("_has_any_flag"))
     issues = _build_issues(flagged_candidates)
 
-    # 4. Convert to output schema
-    accepted = _convert_accepted(candidates)
+    # 4. Compute KLL outlier bounds on accepted candidates
+    kll_bounds = _compute_kll_bounds(candidates)
+
+    # 5. Convert to output schema
+    accepted = _convert_accepted(candidates, kll_bounds=kll_bounds)
 
     return TransformResult(
         accepted=accepted,
@@ -181,24 +200,47 @@ def _month_bounds(source_month: str) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _convert_accepted(df: pl.DataFrame) -> pl.DataFrame:
+def _compute_kll_bounds(candidates: pl.DataFrame) -> dict[str, ThresholdBounds]:
+    seconds = (candidates["_dropoff"] - candidates["_pickup"]).dt.total_seconds()
+    dist = candidates["trip_distance"] * 1000.0
+
+    bounds: dict[str, ThresholdBounds] = {}
+    if len(seconds) > 100:
+        sketch = build_sketch_from_iterable((float(s) for s in seconds if s is not None and 0 < s < 86400), k=DEFAULT_K)
+        bounds["duration_seconds"] = compute_bounds(sketch, "duration_seconds")
+    if len(dist) > 100:
+        sketch = build_sketch_from_iterable(
+            (float(d) for d in dist if d is not None and 0 < d < 1_000_000), k=DEFAULT_K
+        )
+        bounds["distance_millimiles"] = compute_bounds(sketch, "distance_millimiles")
+    return bounds
+
+
+def _convert_accepted(df: pl.DataFrame, *, kll_bounds: dict[str, ThresholdBounds]) -> pl.DataFrame:
+    seconds_expr = (df["_dropoff"] - df["_pickup"]).dt.total_seconds().round(0).cast(pl.Int64)
+    distance_expr = (df["trip_distance"] * 1000.0).round(0).cast(pl.Int64)
+
+    outlier = pl.lit(False)
+    if "duration_seconds" in kll_bounds:
+        b = kll_bounds["duration_seconds"]
+        outlier = outlier | seconds_expr.lt(b.low_bound) | seconds_expr.gt(b.high_bound)
+    if "distance_millimiles" in kll_bounds:
+        b = kll_bounds["distance_millimiles"]
+        outlier = outlier | distance_expr.lt(b.low_bound) | distance_expr.gt(b.high_bound)
+
     return df.select(
         [
             pl.col("_source_row").alias("source_row_number"),
             pl.col("_pickup").alias("pickup_at_local"),
             pl.col("_dropoff").alias("dropoff_at_local"),
-            (pl.col("_dropoff") - pl.col("_pickup"))
-            .dt.total_seconds()
-            .round(0)
-            .cast(pl.Int64)
-            .alias("duration_seconds"),
+            seconds_expr.alias("duration_seconds"),
             pl.col("VendorID").fill_null(0).cast(pl.Int32).alias("vendor_id"),
             pl.col("tpep_pickup_datetime").alias("pickup_datetime_raw"),
             pl.col("tpep_dropoff_datetime").alias("dropoff_datetime_raw"),
             pl.col("passenger_count"),
             pl.col("PULocationID").fill_null(0).cast(pl.Int32).alias("pickup_location_id"),
             pl.col("DOLocationID").fill_null(0).cast(pl.Int32).alias("dropoff_location_id"),
-            (pl.col("trip_distance") * 1000.0).round(0).cast(pl.Int64).alias("distance_millimiles"),
+            distance_expr.alias("distance_millimiles"),
             pl.col("RatecodeID").fill_null(0).cast(pl.Int32).alias("rate_code_id"),
             pl.col("store_and_fwd_flag"),
             pl.col("payment_type").fill_null(0).cast(pl.Int32).alias("payment_type_id"),
@@ -212,7 +254,7 @@ def _convert_accepted(df: pl.DataFrame) -> pl.DataFrame:
             (pl.col("congestion_surcharge") * 100.0).round(0).cast(pl.Int64).alias("congestion_surcharge_cents"),
             (pl.col("airport_fee") * 100.0).round(0).cast(pl.Int64).alias("airport_fee_cents"),
             pl.col("_has_any_flag").alias("has_quality_issue"),
-            pl.lit(False).alias("has_statistical_outlier"),
+            outlier.alias("has_statistical_outlier"),
         ]
     )
 

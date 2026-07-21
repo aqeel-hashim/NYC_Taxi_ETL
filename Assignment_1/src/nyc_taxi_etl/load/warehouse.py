@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,6 +11,11 @@ from psycopg import Connection
 
 from nyc_taxi_etl.transform.reference import PAYMENT_TYPE_LOOKUP, RATE_CODE_LOOKUP, VENDOR_LOOKUP
 from nyc_taxi_etl.transform.trips import TransformResult
+
+_DEFAULT_ZONE_CSV = os.environ.get(
+    "TAXI_ZONE_CSV",
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "references", "taxi_zone_lookup.csv"),
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,8 @@ def load_month(
             _replace_month_facts(conn, result, source_asset_id=source_asset_id, source_version=source_version)
             _record_run(conn, result, source_version=source_version)
             _record_quality(conn, result)
+            _record_trip_quality_issues(conn, result)
+            _populate_analytics_mart(conn, result.source_month)
             duplicate_count = _duplicate_source_count(conn, result.source_month, source_asset_id, source_version)
             if duplicate_count:
                 raise RuntimeError(f"duplicate source rows after load: {duplicate_count}")
@@ -57,6 +66,7 @@ def _load_references(conn: Connection[tuple[object, ...]]) -> None:
         ("dim_rate_code", RATE_CODE_LOOKUP),
     ):
         _load_reference_table(conn, table, lookup)
+    _load_taxi_zones(conn)
 
 
 def _load_reference_table(conn: Connection[tuple[object, ...]], table: str, lookup: Mapping[int, str]) -> None:
@@ -71,6 +81,28 @@ def _load_reference_table(conn: Connection[tuple[object, ...]], table: str, look
             """,
             (business_key, label),
         )
+
+
+def _load_taxi_zones(conn: Connection[tuple[object, ...]]) -> None:
+    zone_csv = _DEFAULT_ZONE_CSV
+    if not os.path.isfile(zone_csv):
+        return
+    with open(zone_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            location_id = int(row["LocationID"])
+            if location_id == 0:
+                continue
+            label = row["Zone"]
+            attrs = f"borough={row['Borough']}, service_zone={row['service_zone']}"
+            conn.execute(
+                """
+                INSERT INTO warehouse.dim_taxi_zone (business_key, label, attributes, observed_from, is_current)
+                VALUES (%s, %s, %s, '1970-01-01 00:00:00+00', true)
+                ON CONFLICT DO NOTHING
+                """,
+                (location_id, label, attrs),
+            )
 
 
 def _upsert_source_asset(
@@ -247,6 +279,67 @@ def _duplicate_source_count(
         (month_start, month_end, source_asset_id, source_version),
     ).fetchone()
     return _as_int(row[0]) if row else 0
+
+
+def _record_trip_quality_issues(conn: Connection[tuple[object, ...]], result: TransformResult) -> None:
+    issues = result.issues
+    if not len(issues):
+        return
+    rows = issues.to_dicts()
+    with conn.cursor() as cur:
+        for row in rows:
+            cur.execute(
+                """
+                INSERT INTO ops.trip_quality_issue (source_month, source_row_number, issue_code, severity)
+                VALUES (%s, %s, %s, 'warning')
+                """,
+                (result.source_month, row["source_row_number"], row["issue_code"]),
+            )
+
+
+def _populate_analytics_mart(conn: Connection[tuple[object, ...]], source_month: str) -> None:
+    month_start, month_end = _month_key_bounds(source_month)
+    conn.execute(
+        "DELETE FROM analytics.trip_metrics_hourly WHERE pickup_date_key >= %s AND pickup_date_key < %s",
+        (month_start, month_end),
+    )
+    conn.execute(
+        """
+        INSERT INTO analytics.trip_metrics_hourly (
+            pickup_date_key, pickup_hour, pickup_zone_key, payment_type_key, vendor_key, rate_code_key,
+            has_statistical_outlier, has_quality_issue,
+            trip_count, passenger_count_sum, passenger_sum,
+            distance_millimiles_sum, duration_seconds_sum,
+            fare_amount_cents_sum, extra_cents_sum, mta_tax_cents_sum, tip_amount_cents_sum,
+            tolls_amount_cents_sum, improvement_surcharge_cents_sum,
+            total_amount_cents_sum, congestion_surcharge_cents_sum, airport_fee_cents_sum
+        )
+        SELECT
+            pickup_date_key,
+            (pickup_time_key / 60)::smallint AS pickup_hour,
+            pickup_zone_key, payment_type_key, vendor_key, rate_code_key,
+            has_statistical_outlier, has_quality_issue,
+            COUNT(*)::bigint,
+            COALESCE(SUM(passenger_count), 0)::bigint,
+            SUM(COALESCE(passenger_count, 0))::bigint,
+            SUM(distance_millimiles)::bigint,
+            SUM(duration_seconds)::bigint,
+            SUM(fare_amount_cents)::bigint,
+            COALESCE(SUM(extra_cents), 0)::bigint,
+            COALESCE(SUM(mta_tax_cents), 0)::bigint,
+            COALESCE(SUM(tip_amount_cents), 0)::bigint,
+            COALESCE(SUM(tolls_amount_cents), 0)::bigint,
+            COALESCE(SUM(improvement_surcharge_cents), 0)::bigint,
+            SUM(total_amount_cents)::bigint,
+            COALESCE(SUM(congestion_surcharge_cents), 0)::bigint,
+            COALESCE(SUM(airport_fee_cents), 0)::bigint
+        FROM warehouse.fact_taxi_trips
+        WHERE pickup_date_key >= %s AND pickup_date_key < %s
+        GROUP BY pickup_date_key, pickup_hour, pickup_zone_key, payment_type_key, vendor_key, rate_code_key,
+            has_statistical_outlier, has_quality_issue
+        """,
+        (month_start, month_end, month_start, month_end),
+    )
 
 
 def _month_key_bounds(source_month: str) -> tuple[int, int]:
