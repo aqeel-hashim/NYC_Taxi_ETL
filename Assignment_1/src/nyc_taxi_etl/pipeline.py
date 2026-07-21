@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import logging
 import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
+from pythonjsonlogger.json import JsonFormatter
 
 from nyc_taxi_etl.contracts.source import validate_contract
 from nyc_taxi_etl.load.warehouse import load_month
@@ -21,6 +24,7 @@ SOURCE_ERROR = 3
 DATABASE_ERROR = 4
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 SOURCE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{month}.parquet"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,10 +40,14 @@ class PipelineResult:
 
 
 def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> PipelineResult:
+    started_at = time.monotonic()
+    LOGGER.info("pipeline_started", extra={"event": "pipeline_started", "source_month": month, "fixture": fixture})
     if not MONTH_RE.fullmatch(month):
         raise ValueError("month must be YYYY-MM")
     source_path, source_url = _resolve_source(month, fixture=fixture)
     raw = pl.read_parquet(source_path)
+    if "Airport_fee" in raw.columns and "airport_fee" not in raw.columns:
+        raw = raw.rename({"Airport_fee": "airport_fee"})
     contract = validate_contract(raw)
     if not contract.is_valid:
         raise RuntimeError(f"source contract failed: {contract.status.name}")
@@ -56,7 +64,7 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
         sha256=source_hash,
         byte_size=source_path.stat().st_size,
     )
-    return PipelineResult(
+    pipeline_result = PipelineResult(
         source_rows=result.source_rows,
         accepted_rows=result.accepted_rows,
         rejected_rows=result.rejected_rows,
@@ -66,9 +74,25 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
         duplicate_source_rows=load_result.duplicate_source_rows,
         sha256=source_hash,
     )
+    LOGGER.info(
+        "pipeline_completed",
+        extra={
+            "event": "pipeline_completed",
+            "source_month": month,
+            "elapsed_seconds": round(time.monotonic() - started_at, 3),
+            "source_rows": pipeline_result.source_rows,
+            "accepted_rows": pipeline_result.accepted_rows,
+            "rejected_rows": pipeline_result.rejected_rows,
+            "flagged_rows": pipeline_result.flagged_rows,
+        },
+    )
+    return pipeline_result
 
 
 def main(argv: list[str] | None = None) -> int:
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter("%(asctime)s %(levelname)s %(message)s"))
+    logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
     parser = argparse.ArgumentParser(description="Load one NYC Yellow Taxi month")
     parser.add_argument("month")
     parser.add_argument("--fixture", action="store_true")
@@ -83,12 +107,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run_pipeline(args.month, database_url=database_url, fixture=args.fixture)
     except ValueError as exc:
+        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return USAGE_ERROR
     except (pl.exceptions.PolarsError, RuntimeError, subprocess.CalledProcessError, OSError) as exc:
+        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return SOURCE_ERROR
     except Exception as exc:
+        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return DATABASE_ERROR
     print(

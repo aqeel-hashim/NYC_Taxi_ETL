@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from nyc_taxi_etl import pipeline
@@ -67,3 +68,18 @@ def test_resolve_source_downloads_when_missing(tmp_path: Path, monkeypatch: pyte
     assert path == Path("data/yellow_tripdata_2023-01.parquet")
     assert url.endswith("yellow_tripdata_2023-01.parquet")
     assert calls == [["curl", "-fL", url, "-o", str(path)]]
+
+
+def test_pipeline_normalizes_airport_fee_column(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pl.DataFrame({"Airport_fee": [1.0]}).write_parquet(tmp_path / "source.parquet")
+
+    monkeypatch.setattr(pipeline, "_resolve_source", lambda _month, fixture: (tmp_path / "source.parquet", "fixture"))
+    monkeypatch.setattr(pipeline, "validate_contract", lambda frame: type("Contract", (), {"is_valid": True})())
+
+    def fake_transform(frame: pl.DataFrame, _month: str) -> None:
+        assert "airport_fee" in frame.columns
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(pipeline, "transform", fake_transform)
+    with pytest.raises(RuntimeError, match="stop"):
+        pipeline.run_pipeline("2023-02", database_url="postgresql://unused", fixture=True)

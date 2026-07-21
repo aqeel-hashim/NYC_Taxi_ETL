@@ -1,6 +1,6 @@
 # Assignment 1: Batch ETL
 
-Status: Assignment 1 warehouse contract works; local ETL vertical slice in progress.
+Status: Assignment 1 complete. Local demo runs staged on current Docker memory.
 
 ## Verified Local Commands
 
@@ -13,7 +13,7 @@ DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01 --fixture
 TEST_DATABASE_URL="$TEST_DATABASE_URL" ./scripts/verify.sh
 ```
 
-Use the disposable PostgreSQL harness in `../plans/001-warehouse-contract.md` for `TEST_DATABASE_URL`. Real January load uses the same command without `--fixture`; Kubernetes, Airflow runtime images, dashboard, and AWS remain planned.
+`./setup.sh` creates environment, starts PostgreSQL, downloads January and February 2023 with `curl`, then runs checks. Copy `.env.example` to `.env`, set `POSTGRES_PASSWORD` and `DATABASE_URL` first. Use disposable PostgreSQL harness in `../plans/001-warehouse-contract.md` for focused tests. Real loads use `./scripts/run-pipeline.sh 2023-01` and `./scripts/run-pipeline.sh 2023-02`.
 
 Airflow runtime image:
 

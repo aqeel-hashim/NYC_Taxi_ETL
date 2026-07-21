@@ -19,6 +19,7 @@ log_info "Project: ${REPO_ROOT}"
 
 usage() {
     echo "Usage: ./setup.sh [--profile auto|staged|concurrent] [--from STAGE|--only STAGE] [--non-interactive]"
+    echo "Stages: preflight, tools, python_env, database, data, verify"
 }
 
 ONLY_STAGE=""
@@ -84,12 +85,23 @@ python_env() {
 # pg setup, compose
 database() {
     log_info "=== Database ==="
+    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+        set -a
+        source "${SCRIPT_DIR}/.env"
+        set +a
+    fi
     docker compose -f "${SCRIPT_DIR}/../infra/local/compose.postgres.yaml" up -d --wait
     until docker compose -f "${SCRIPT_DIR}/../infra/local/compose.postgres.yaml" exec -T postgres pg_isready -U taxi_app -d taxi_warehouse 2>/dev/null; do
         sleep 1
     done
-    uv run alembic upgrade head
+    DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in .env or environment}" uv run alembic upgrade head
     log_success "Database ready"
+}
+
+data() {
+    log_info "=== Source Data ==="
+    "${SCRIPT_DIR}/scripts/download-sources.sh"
+    log_success "January and February 2023 data downloaded"
 }
 
 verify() {
@@ -101,7 +113,11 @@ verify() {
 }
 
 main() {
-    local stages=("preflight" "tools" "python_env" "database" "verify")
+    local stages=("preflight" "tools" "python_env" "database" "data" "verify")
+    [[ " ${stages[*]} " == *" ${START_STAGE} "* ]] || {
+        usage >&2
+        exit 2
+    }
     local started=false
     for stage in "${stages[@]}"; do
         if [[ "${stage}" == "${START_STAGE}" ]]; then
