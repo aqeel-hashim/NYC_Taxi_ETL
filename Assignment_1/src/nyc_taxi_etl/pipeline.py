@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -75,8 +76,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     database_url = args.database_url
     if not database_url:
-        import os
-
         database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         print("DATABASE_URL is required", file=sys.stderr)
@@ -112,7 +111,8 @@ def _resolve_source(month: str, *, fixture: bool) -> tuple[Path, str]:
     if fixture:
         from nyc_taxi_etl.fixtures import write_taxi_fixture
 
-        return write_taxi_fixture(Path("tests/fixtures/yellow_tripdata_fixture.parquet")), "fixture"
+        fixture_path = Path(os.environ.get("NYC_TAXI_FIXTURE_PATH", "tests/fixtures/yellow_tripdata_fixture.parquet"))
+        return write_taxi_fixture(fixture_path), "fixture"
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
     path = data_dir / f"yellow_tripdata_{month}.parquet"

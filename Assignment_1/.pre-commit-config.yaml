@@ -37,3 +37,4 @@ repos:
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=500]
+        exclude: ^Assignment_1/uv\.lock$

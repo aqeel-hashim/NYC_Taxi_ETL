@@ -15,6 +15,12 @@ TEST_DATABASE_URL="$TEST_DATABASE_URL" ./scripts/verify.sh
 
 Use the disposable PostgreSQL harness in `../plans/001-warehouse-contract.md` for `TEST_DATABASE_URL`. Real January load uses the same command without `--fixture`; Kubernetes, Airflow runtime images, dashboard, and AWS remain planned.
 
+Airflow runtime image:
+
+```bash
+docker build -f docker/airflow.Dockerfile -t nyc-taxi-airflow:test .
+```
+
 [Implementation plan](docs/implementation-plan.md) | [Architecture](docs/architecture.md) | [Data model](docs/data-model.md)
 
 ## Requirement Traceability
