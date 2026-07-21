@@ -183,6 +183,54 @@ CREATE TABLE warehouse.fact_taxi_trips (
             PRIMARY KEY (pickup_date_key, trip_key)
         ) PARTITION BY RANGE (pickup_date_key);
 
+CREATE TABLE warehouse.fact_taxi_trips_2023_01
+        PARTITION OF warehouse.fact_taxi_trips
+        FOR VALUES FROM (20230101) TO (20230201);
+
+CREATE TABLE warehouse.fact_taxi_trips_2023_02
+        PARTITION OF warehouse.fact_taxi_trips
+        FOR VALUES FROM (20230201) TO (20230301);
+
+ALTER TABLE warehouse.fact_taxi_trips
+        ADD CONSTRAINT uq_fact_taxi_trips_source_row
+        UNIQUE (pickup_date_key, source_asset_id, source_version, source_row_number);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_pickup_date_key
+            FOREIGN KEY (pickup_date_key) REFERENCES warehouse.dim_date (date_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_dropoff_date_key
+            FOREIGN KEY (dropoff_date_key) REFERENCES warehouse.dim_date (date_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_pickup_time_key
+            FOREIGN KEY (pickup_time_key) REFERENCES warehouse.dim_time (time_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_dropoff_time_key
+            FOREIGN KEY (dropoff_time_key) REFERENCES warehouse.dim_time (time_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_pickup_zone_key
+            FOREIGN KEY (pickup_zone_key) REFERENCES warehouse.dim_taxi_zone (surrogate_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_dropoff_zone_key
+            FOREIGN KEY (dropoff_zone_key) REFERENCES warehouse.dim_taxi_zone (surrogate_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_payment_type_key
+            FOREIGN KEY (payment_type_key) REFERENCES warehouse.dim_payment_type (surrogate_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_vendor_key
+            FOREIGN KEY (vendor_key) REFERENCES warehouse.dim_vendor (surrogate_key);
+
+ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_rate_code_key
+            FOREIGN KEY (rate_code_key) REFERENCES warehouse.dim_rate_code (surrogate_key);
+
 CREATE TABLE analytics.trip_metrics_hourly (
             pickup_date_key INTEGER NOT NULL,
             pickup_hour SMALLINT NOT NULL,
@@ -209,6 +257,14 @@ CREATE TABLE analytics.trip_metrics_hourly (
             PRIMARY KEY (pickup_date_key, pickup_hour, pickup_zone_key, payment_type_key,
                          vendor_key, rate_code_key, has_statistical_outlier, has_quality_issue)
         ) PARTITION BY RANGE (pickup_date_key);
+
+CREATE TABLE analytics.trip_metrics_hourly_2023_01
+        PARTITION OF analytics.trip_metrics_hourly
+        FOR VALUES FROM (20230101) TO (20230201);
+
+CREATE TABLE analytics.trip_metrics_hourly_2023_02
+        PARTITION OF analytics.trip_metrics_hourly
+        FOR VALUES FROM (20230201) TO (20230301);
 
 CREATE TABLE ops.pipeline_run (
     id BIGSERIAL NOT NULL,
@@ -4574,6 +4630,26 @@ INSERT INTO warehouse.dim_time (time_key, hour, minute, quarter_hour, hour_label
 
 INSERT INTO warehouse.dim_time (time_key, hour, minute, quarter_hour, hour_label, daypart)
             VALUES (1439, 23, 59, 3, '23:59', 'Evening');
+
+INSERT INTO warehouse.dim_date (
+            date_key, calendar_date, year, quarter, month, month_name, iso_week, iso_year,
+            day_of_month, day_of_year, weekday_number, weekday_name, is_weekend
+        )
+        SELECT
+            to_char(d, 'YYYYMMDD')::integer,
+            d,
+            extract(year from d)::smallint,
+            extract(quarter from d)::smallint,
+            extract(month from d)::smallint,
+            trim(to_char(d, 'Month')),
+            extract(week from d)::smallint,
+            extract(isoyear from d)::smallint,
+            extract(day from d)::smallint,
+            extract(doy from d)::smallint,
+            extract(isodow from d)::smallint,
+            trim(to_char(d, 'Day')),
+            extract(isodow from d) in (6, 7)
+        FROM generate_series('2023-01-01'::date, '2023-03-01'::date, interval '1 day') AS s(d);
 
 INSERT INTO warehouse.dim_taxi_zone (surrogate_key, business_key, label, observed_from, is_current)
             VALUES (0, 0, 'Unknown', '1970-01-01 00:00:00+00', TRUE);
