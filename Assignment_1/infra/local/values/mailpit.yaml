@@ -1,0 +1,13 @@
+service:
+  smtp:
+    port: 1025
+  web:
+    port: 8025
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: mailpit.taxi.localhost
+      paths:
+        - path: /
+          pathType: Prefix

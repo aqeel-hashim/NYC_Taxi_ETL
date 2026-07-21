@@ -1,0 +1,51 @@
+config:
+  core:
+    load_examples: "false"
+  database:
+    sql_alchemy_conn: postgresql+psycopg://airflow:change-me@postgresql-rw.data-platform:5432/airflow
+  kubernetes_executor:
+    kubernetes_executor: "True"
+executor: "KubernetesExecutor"
+images:
+  airflow:
+    repository: taxi-airflow
+    tag: latest
+    pullPolicy: IfNotPresent
+defaultAirflowRepository: taxi-airflow
+defaultAirflowTag: latest
+env:
+  - name: DATABASE_URL
+    value: postgresql+psycopg://taxi_app:change-me@postgresql-rw.data-platform:5432/taxi_warehouse
+  - name: MINIO_ENDPOINT
+    value: minio.data-platform:9000
+  - name: MINIO_ACCESS_KEY
+    value: minioadmin
+  - name: MINIO_SECRET_KEY
+    value: minioadmin
+  - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+    value: postgresql+psycopg://airflow:change-me@postgresql-rw.data-platform:5432/airflow
+webserver:
+  defaultUser:
+    enabled: true
+    role: Admin
+    username: admin
+    password: admin
+pgbouncer:
+  enabled: false
+postgresql:
+  enabled: false
+workers:
+  replicas: 1
+scheduler:
+  replicas: 1
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 1Gi
+    cpu: 1
+createUserJob:
+  useHelmValues: true
+migrateDatabaseJob:
+  enabled: true

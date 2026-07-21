@@ -1,0 +1,27 @@
+config:
+  issuer: https://dex.taxi.localhost:8443
+  storage:
+    type: sqlite3
+    config:
+      file: /var/dex/dex.db
+  staticClients:
+    - id: taxi-app
+      name: Taxi App
+      secretEnv: DEX_CLIENT_SECRET
+  staticPasswords:
+    - email: admin@taxi.local
+      hash: "$2a$10$2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2q2r2s2t2u2v2w2x2y2z2A2B2C"
+      username: admin
+      userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+    - email: viewer@taxi.local
+      hash: "$2a$10$2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2q2r2s2t2u2v2w2x2y2z2A2B2C"
+      username: viewer
+      userID: "18a8684b-db88-4b73-90a9-3cd1661f5466"
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: dex.taxi.localhost
+      paths:
+        - path: /
+          pathType: Prefix

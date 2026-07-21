@@ -1,0 +1,12 @@
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+ports:
+  web:
+    port: 8080
+  websecure:
+    port: 8443
+    tls:
+      enabled: true
+service:
+  type: ClusterIP

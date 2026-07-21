@@ -1,0 +1,27 @@
+prometheus:
+  prometheusSpec:
+    retention: 14d
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 200m
+      limits:
+        memory: 1Gi
+        cpu: 1
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+alertmanager:
+  enabled: true
+grafana:
+  enabled: true
+  adminPassword: admin
+  defaultDashboardsEnabled: false
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m

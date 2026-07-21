@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: taxi-warehouse
+  namespace: data-platform
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.4
+  storage:
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: taxi_warehouse
+      owner: taxi_app
+      secret:
+        name: taxi-app-password
+  databases:
+    - name: airflow
+      owner: airflow
+  roles:
+    - name: taxi_app
+      login: true
+      passwordSecret:
+        name: taxi-app-password
+    - name: airflow
+      login: true
+      passwordSecret:
+        name: airflow-password
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m

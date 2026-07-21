@@ -1,0 +1,20 @@
+config:
+  clientID: taxi-app
+  clientSecret: ""
+  cookieSecret: ""
+  oauthProvider: dex
+  oidcIssuerURL: https://dex.taxi.localhost:8443
+  upstreams:
+    - file:///dev/null
+extraArgs:
+  provider: oidc
+  scope: "openid email profile"
+  set-authorization-header: "true"
+  cookie-secure: "true"
+  pass-authorization-header: "true"
+  pass-user-headers: "true"
+  whitelist-domains: "*.taxi.localhost"
+resources:
+  requests:
+    memory: 64Mi
+    cpu: 50m
