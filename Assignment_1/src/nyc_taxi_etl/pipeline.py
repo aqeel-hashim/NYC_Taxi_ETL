@@ -16,6 +16,7 @@ from pythonjsonlogger.json import JsonFormatter
 
 from nyc_taxi_etl.contracts.source import validate_contract
 from nyc_taxi_etl.load.warehouse import load_month
+from nyc_taxi_etl.storage.minio import quarantine_rejected
 from nyc_taxi_etl.transform.trips import transform
 
 SUCCESS = 0
@@ -55,6 +56,16 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
     result = transform(raw, month)
     if result.source_rows != result.accepted_rows + result.rejected_rows:
         raise RuntimeError("source row reconciliation failed")
+    quarantine_path = quarantine_rejected(result.rejected, month)
+    LOGGER.info(
+        "pipeline_quarantine",
+        extra={
+            "event": "pipeline_quarantine",
+            "source_month": month,
+            "rejected_rows": result.rejected_rows,
+            "quarantine_path": quarantine_path,
+        },
+    )
     load_result = load_month(
         database_url,
         result,

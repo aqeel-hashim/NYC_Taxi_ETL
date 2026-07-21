@@ -3,10 +3,19 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 
+import requests
+
 from airflow.decorators import dag, task
 from nyc_taxi_etl.pipeline import run_pipeline
 
-DEFAULT_ARGS = {"owner": "taxi", "retries": 0, "retry_delay": timedelta(minutes=5)}
+DEFAULT_ARGS = {
+    "owner": "taxi",
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
+    "execution_timeout": timedelta(hours=2),
+    "pool": "taxi_etl_pool",
+}
+SOURCE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{month}.parquet"
 
 
 def _source_month(context: dict[str, object]) -> str:
@@ -33,9 +42,16 @@ def _source_month(context: dict[str, object]) -> str:
     tags=["taxi", "etl"],
 )
 def taxi_monthly_etl() -> None:
-    @task(task_id="publish_month")
-    def publish_month(**context: object) -> dict[str, int]:
+    @task(task_id="check_source")
+    def check_source(**context: object) -> str:
         month = _source_month(context)
+        url = SOURCE_URL.format(month=month)
+        resp = requests.head(url, timeout=10)
+        resp.raise_for_status()
+        return month
+
+    @task(task_id="publish_month")
+    def publish_month(month: str) -> dict[str, int]:
         result = run_pipeline(
             month,
             database_url=os.environ["DATABASE_URL"],
@@ -56,7 +72,9 @@ def taxi_monthly_etl() -> None:
             f"rejected={counts['rejected_rows']} flagged_rows={counts['flagged_rows']}"
         )
 
-    complete(publish_month())
+    month = check_source()
+    counts = publish_month(month=month)
+    complete(counts)
 
 
 taxi_monthly_etl()
