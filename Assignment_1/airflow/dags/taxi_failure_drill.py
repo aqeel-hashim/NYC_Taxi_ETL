@@ -5,11 +5,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from alerting import notify_failure
-
 from airflow.decorators import dag, task
 from airflow.exceptions import AirflowFailException
 from airflow.utils.context import Context
+from nyc_taxi_etl.alerting import notify_failure
 
 
 def write_failure_evidence(context: Context) -> None:

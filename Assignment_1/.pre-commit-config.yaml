@@ -17,6 +17,7 @@ repos:
           - psycopg[binary]>=3.2
           - boto3>=1.35
           - pytest>=8.3
+          - types-requests>=2.32
   - repo: https://github.com/sqlfluff/sqlfluff
     rev: 3.3.1
     hooks:

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
-from alerting import notify_failure
 
 from airflow.decorators import dag, task
+from nyc_taxi_etl.alerting import notify_failure
 from nyc_taxi_etl.pipeline import run_pipeline
 
 DEFAULT_ARGS = {
@@ -27,9 +27,9 @@ def _source_month(context: dict[str, object]) -> str:
         return str(conf["source_month"])
     if os.environ.get("NYC_TAXI_FIXTURE_MODE") == "true":
         return "2023-01"
-    data_interval_start = context.get("data_interval_start")
-    if isinstance(data_interval_start, datetime):
-        previous_month = data_interval_start.replace(day=1) - timedelta(days=1)
+    data_interval_end = context.get("data_interval_end")
+    if isinstance(data_interval_end, datetime):
+        previous_month = data_interval_end.replace(day=1) - timedelta(days=1)
         return previous_month.strftime("%Y-%m")
     return "2023-01"
 

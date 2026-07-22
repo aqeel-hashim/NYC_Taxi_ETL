@@ -34,11 +34,13 @@ def load_month(
     source_url: str,
     sha256: str,
     byte_size: int,
+    started_at: datetime | None = None,
 ) -> LoadResult:
     psycopg_url = database_url.replace("postgresql+psycopg://", "postgresql://")
     with psycopg.connect(psycopg_url) as conn:
         with conn.transaction():
             _load_references(conn)
+            _ensure_month_support(conn, result.source_month)
             _upsert_source_asset(
                 conn,
                 source_asset_id=source_asset_id,
@@ -50,13 +52,13 @@ def load_month(
                 is_synthetic=source_url == "fixture",
             )
             _replace_month_facts(conn, result, source_asset_id=source_asset_id, source_version=source_version)
-            _record_run(conn, result, source_version=source_version)
             _record_quality(conn, result)
             _record_trip_quality_issues(conn, result)
             _populate_analytics_mart(conn, result.source_month)
             duplicate_count = _duplicate_source_count(conn, result.source_month, source_asset_id, source_version)
             if duplicate_count:
                 raise RuntimeError(f"duplicate source rows after load: {duplicate_count}")
+            _record_run(conn, result, source_version=source_version, started_at=started_at)
         return LoadResult(inserted_rows=result.accepted_rows, duplicate_source_rows=0)
 
 
@@ -104,6 +106,36 @@ def _load_taxi_zones(conn: Connection[tuple[object, ...]]) -> None:
                 """,
                 (location_id, label, attrs),
             )
+
+
+def _ensure_month_support(conn: Connection[tuple[object, ...]], source_month: str) -> None:
+    month_start, month_end = _month_key_bounds(source_month)
+    year, month = (int(part) for part in source_month.split("-"))
+    start_date = datetime(year, month, 1).date()
+    end_date = datetime(year + (month == 12), month % 12 + 1, 1).date()
+    conn.execute(
+        """
+        INSERT INTO warehouse.dim_date (
+            date_key, calendar_date, year, quarter, month, month_name, iso_week, iso_year,
+            day_of_month, day_of_year, weekday_number, weekday_name, is_weekend
+        )
+        SELECT
+            to_char(d, 'YYYYMMDD')::integer, d, extract(year from d)::smallint,
+            extract(quarter from d)::smallint, extract(month from d)::smallint,
+            trim(to_char(d, 'Month')), extract(week from d)::smallint,
+            extract(isoyear from d)::smallint, extract(day from d)::smallint,
+            extract(doy from d)::smallint, extract(isodow from d)::smallint,
+            trim(to_char(d, 'Day')), extract(isodow from d) in (6, 7)
+        FROM generate_series(%s::date, %s::date, interval '1 day') AS s(d)
+        ON CONFLICT (date_key) DO NOTHING
+        """,
+        (start_date, end_date),
+    )
+    partition = f"trip_metrics_hourly_{source_month.replace('-', '_')}"
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS analytics.{partition} "
+        f"PARTITION OF analytics.trip_metrics_hourly FOR VALUES FROM ({month_start}) TO ({month_end})"
+    )
 
 
 def _upsert_source_asset(
@@ -305,20 +337,32 @@ def _fact_row(
     )
 
 
-def _record_run(conn: Connection[tuple[object, ...]], result: TransformResult, *, source_version: str) -> None:
+def _record_run(
+    conn: Connection[tuple[object, ...]],
+    result: TransformResult,
+    *,
+    source_version: str,
+    started_at: datetime | None,
+) -> None:
+    finished_at = datetime.now(UTC)
+    started_at = started_at or finished_at
+    dag_id = os.environ.get("AIRFLOW_CTX_DAG_ID", "local")
+    run_id = os.environ.get("AIRFLOW_CTX_DAG_RUN_ID", f"local-{result.source_month}-{source_version[:12]}")
     conn.execute(
         """
         INSERT INTO ops.pipeline_run (
-            dag_id, run_id, source_month, status, started_at, finished_at,
+            dag_id, run_id, task_id, source_month, status, started_at, finished_at, duration_seconds,
             source_rows, accepted_rows, rejected_rows, flagged_rows, source_version
-        ) VALUES (%s, %s, %s, 'success', %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, 'success', %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
-            "local",
-            f"local-{result.source_month}-{source_version[:12]}",
+            dag_id,
+            run_id,
+            os.environ.get("AIRFLOW_CTX_TASK_ID"),
             result.source_month,
-            datetime.now(UTC),
-            datetime.now(UTC),
+            started_at,
+            finished_at,
+            (finished_at - started_at).total_seconds(),
             result.source_rows,
             result.accepted_rows,
             result.rejected_rows,

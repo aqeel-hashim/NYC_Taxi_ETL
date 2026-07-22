@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "airflow" / "dags"))
-from alerting import _payload, _post_webhook, _send_email
+from nyc_taxi_etl.alerting import _payload, _post_webhook, _send_email
 
 
 def test_failure_payload_excludes_exception_message() -> None:
@@ -35,7 +32,7 @@ def test_webhook_uses_secret_header(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ALERT_WEBHOOK_TOKEN", "generated-token")
     post = MagicMock()
     post.return_value.raise_for_status.return_value = None
-    monkeypatch.setattr("alerting.requests.post", post)
+    monkeypatch.setattr("nyc_taxi_etl.alerting.requests.post", post)
 
     _post_webhook({"event": "failure"})
 
@@ -54,7 +51,7 @@ def test_smtp_relay_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SMTP_PASSWORD", "relay-password")
     smtp = MagicMock()
     smtp.return_value.__enter__.return_value = smtp
-    monkeypatch.setattr("alerting.smtplib.SMTP", smtp)
+    monkeypatch.setattr("nyc_taxi_etl.alerting.smtplib.SMTP", smtp)
 
     _send_email({"dag_id": "taxi", "task_id": "load"})
 

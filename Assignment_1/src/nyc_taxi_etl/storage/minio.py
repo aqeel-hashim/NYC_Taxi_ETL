@@ -1,12 +1,11 @@
-"""MinIO S3-compatible client wrapper with local fallback."""
+"""MinIO connection settings for the optional extended platform."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
-import polars as pl
+from nyc_taxi_etl.storage.quarantine import quarantine_rejected
 
 
 @dataclass
@@ -37,13 +36,4 @@ def get_client() -> MinioClient | None:
     return _client
 
 
-def quarantine_rejected(rejected: pl.DataFrame, source_month: str, base_dir: str = "data/quarantine") -> str:
-    """Save rejected rows as Parquet to local disk (MinIO fallback)."""
-    path = os.path.join(base_dir, source_month)
-    Path(path).mkdir(parents=True, exist_ok=True)
-    filepath = os.path.join(path, "rejected.parquet")
-    if len(rejected):
-        rejected.write_parquet(filepath)
-    else:
-        Path(filepath).touch()
-    return filepath
+__all__ = ["MinioClient", "get_client", "quarantine_rejected"]

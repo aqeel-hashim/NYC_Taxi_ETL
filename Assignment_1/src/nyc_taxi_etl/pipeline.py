@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import logging
 import os
 import re
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
@@ -16,7 +18,7 @@ from pythonjsonlogger.json import JsonFormatter
 
 from nyc_taxi_etl.contracts.source import validate_contract
 from nyc_taxi_etl.load.warehouse import load_month
-from nyc_taxi_etl.storage.minio import quarantine_rejected
+from nyc_taxi_etl.storage.quarantine import quarantine_rejected
 from nyc_taxi_etl.transform.trips import transform
 
 SUCCESS = 0
@@ -26,6 +28,11 @@ DATABASE_ERROR = 4
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 SOURCE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{month}.parquet"
 LOGGER = logging.getLogger(__name__)
+
+
+def _log_event(event: str, **fields: object) -> None:
+    payload = {"event": event, **fields}
+    LOGGER.info(json.dumps(payload, sort_keys=True), extra=payload)
 
 
 @dataclass(frozen=True)
@@ -42,7 +49,43 @@ class PipelineResult:
 
 def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> PipelineResult:
     started_at = time.monotonic()
-    LOGGER.info("pipeline_started", extra={"event": "pipeline_started", "source_month": month, "fixture": fixture})
+    started_at_utc = datetime.now(UTC)
+    _log_event("pipeline_started", source_month=month, fixture=fixture)
+    try:
+        pipeline_result = _run_pipeline(
+            month,
+            database_url=database_url,
+            fixture=fixture,
+            started_at=started_at_utc,
+        )
+    except Exception:
+        payload = {
+            "event": "pipeline_failed",
+            "source_month": month,
+            "fixture": fixture,
+            "elapsed_seconds": round(time.monotonic() - started_at, 3),
+        }
+        LOGGER.exception(json.dumps(payload, sort_keys=True), extra=payload)
+        raise
+    _log_event(
+        "pipeline_completed",
+        source_month=month,
+        elapsed_seconds=round(time.monotonic() - started_at, 3),
+        source_rows=pipeline_result.source_rows,
+        accepted_rows=pipeline_result.accepted_rows,
+        rejected_rows=pipeline_result.rejected_rows,
+        flagged_rows=pipeline_result.flagged_rows,
+    )
+    return pipeline_result
+
+
+def _run_pipeline(
+    month: str,
+    *,
+    database_url: str,
+    fixture: bool,
+    started_at: datetime,
+) -> PipelineResult:
     if not MONTH_RE.fullmatch(month):
         raise ValueError("month must be YYYY-MM")
     source_path, source_url = _resolve_source(month, fixture=fixture)
@@ -57,14 +100,11 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
     if result.source_rows != result.accepted_rows + result.rejected_rows:
         raise RuntimeError("source row reconciliation failed")
     quarantine_path = quarantine_rejected(result.rejected, month)
-    LOGGER.info(
+    _log_event(
         "pipeline_quarantine",
-        extra={
-            "event": "pipeline_quarantine",
-            "source_month": month,
-            "rejected_rows": result.rejected_rows,
-            "quarantine_path": quarantine_path,
-        },
+        source_month=month,
+        rejected_rows=result.rejected_rows,
+        quarantine_path=quarantine_path,
     )
     load_result = load_month(
         database_url,
@@ -74,6 +114,7 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
         source_url=source_url,
         sha256=source_hash,
         byte_size=source_path.stat().st_size,
+        started_at=started_at,
     )
     pipeline_result = PipelineResult(
         source_rows=result.source_rows,
@@ -84,18 +125,6 @@ def run_pipeline(month: str, *, database_url: str, fixture: bool = False) -> Pip
         inserted_rows=load_result.inserted_rows,
         duplicate_source_rows=load_result.duplicate_source_rows,
         sha256=source_hash,
-    )
-    LOGGER.info(
-        "pipeline_completed",
-        extra={
-            "event": "pipeline_completed",
-            "source_month": month,
-            "elapsed_seconds": round(time.monotonic() - started_at, 3),
-            "source_rows": pipeline_result.source_rows,
-            "accepted_rows": pipeline_result.accepted_rows,
-            "rejected_rows": pipeline_result.rejected_rows,
-            "flagged_rows": pipeline_result.flagged_rows,
-        },
     )
     return pipeline_result
 
@@ -109,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fixture", action="store_true")
     parser.add_argument("--database-url", default=None)
     args = parser.parse_args(argv)
+    if not MONTH_RE.fullmatch(args.month):
+        print("month must be YYYY-MM", file=sys.stderr)
+        return USAGE_ERROR
     database_url = args.database_url
     if not database_url:
         database_url = os.environ.get("DATABASE_URL")
@@ -118,15 +150,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run_pipeline(args.month, database_url=database_url, fixture=args.fixture)
     except ValueError as exc:
-        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return USAGE_ERROR
     except (pl.exceptions.PolarsError, RuntimeError, subprocess.CalledProcessError, OSError) as exc:
-        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return SOURCE_ERROR
     except Exception as exc:
-        LOGGER.exception("pipeline_failed")
         print(str(exc), file=sys.stderr)
         return DATABASE_ERROR
     print(
@@ -156,16 +185,18 @@ def _resolve_source(month: str, *, fixture: bool) -> tuple[Path, str]:
     path = data_dir / f"yellow_tripdata_{month}.parquet"
     url = SOURCE_URL.format(month=month)
     if not path.exists():
-        subprocess.run(["curl", "-fL", url, "-o", str(path)], check=True)
+        partial = path.with_suffix(f"{path.suffix}.part")
+        subprocess.run(
+            ["curl", "--fail", "--location", "--retry", "5", "--retry-all-errors", url, "--output", str(partial)],
+            check=True,
+        )
+        partial.replace(path)
     return path, url
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 if __name__ == "__main__":

@@ -26,7 +26,11 @@ if ((${#missing[@]})); then
   exit 1
 fi
 [[ "$(uname -s)" == Linux ]] || { log_error "Supported hosts: glibc Linux and WSL2"; exit 1; }
-case "$(uname -m)" in x86_64|aarch64|arm64) ;; *) log_error "Unsupported architecture: $(uname -m)"; exit 1 ;; esac
+case "$(uname -m)" in
+  x86_64) export POSTGRES_IMAGE="pgvector/pgvector@sha256:815bf5378222044da3b34d98e6a5fdac37b15c428b67d09c7c2d90a038e597bf" ;;
+  aarch64|arm64) export POSTGRES_IMAGE="pgvector/pgvector@sha256:555f6d1b6373d0f50ab7eb83062f0a7214ca17b9e5885fb60aaceeb082d58cb5" ;;
+  *) log_error "Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
 ldd --version 2>&1 | grep -Eiq 'glibc|GNU libc' || { log_error "Automatic bootstrap requires glibc Linux; Alpine/musl is unsupported"; exit 1; }
 docker info >/dev/null 2>&1 || { log_error "Docker daemon is unreachable; start Docker and grant this user access"; exit 1; }
 docker compose version >/dev/null 2>&1 || { log_error "Docker Compose v2 plugin is required"; exit 1; }
@@ -60,7 +64,7 @@ for required_name in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD DATABASE_URL MI
   [[ -n "${!required_name:-}" ]] || { log_error "Missing ${required_name} in .env"; exit 1; }
 done
 
-docker compose --project-name nyc-taxi-a1 --env-file "${ROOT_DIR}/.env" \
+docker compose --project-name "${COMPOSE_PROJECT_NAME:-nyc-taxi-a1}" --env-file "${ROOT_DIR}/.env" \
   --file "${ROOT_DIR}/infra/local/compose.postgres.yaml" up --detach --wait postgres
 "${ROOT_DIR}/scripts/download-sources.sh"
 DATABASE_URL="${DATABASE_URL}" "${ROOT_DIR}/.venv/bin/alembic" -c "${ROOT_DIR}/alembic.ini" upgrade head
@@ -113,4 +117,4 @@ if [[ "${NO_DASHBOARD}" == true ]]; then
 fi
 log_info "Dashboard: http://localhost:8501 (Ctrl-C stops Streamlit; PostgreSQL remains available)"
 exec "${ROOT_DIR}/.venv/bin/streamlit" run "${ROOT_DIR}/dashboard/app.py" \
-  --server.address 0.0.0.0 --server.port 8501 --server.headless true
+  --server.address 127.0.0.1 --server.port 8501 --server.headless true

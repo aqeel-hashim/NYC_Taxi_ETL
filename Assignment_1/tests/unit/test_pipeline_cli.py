@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
@@ -67,10 +69,25 @@ def test_resolve_source_downloads_when_missing(tmp_path: Path, monkeypatch: pyte
     path, url = pipeline._resolve_source("2023-01", fixture=False)
     assert path == Path("data/yellow_tripdata_2023-01.parquet")
     assert url.endswith("yellow_tripdata_2023-01.parquet")
-    assert calls == [["curl", "-fL", url, "-o", str(path)]]
+    assert calls == [
+        [
+            "curl",
+            "--fail",
+            "--location",
+            "--retry",
+            "5",
+            "--retry-all-errors",
+            url,
+            "--output",
+            str(path.with_suffix(".parquet.part")),
+        ]
+    ]
 
 
-def test_pipeline_normalizes_airport_fee_column(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_normalizes_airport_fee_column(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     pl.DataFrame({"Airport_fee": [1.0]}).write_parquet(tmp_path / "source.parquet")
 
     monkeypatch.setattr(pipeline, "_resolve_source", lambda _month, fixture: (tmp_path / "source.parquet", "fixture"))
@@ -81,5 +98,10 @@ def test_pipeline_normalizes_airport_fee_column(tmp_path: Path, monkeypatch: pyt
         raise RuntimeError("stop")
 
     monkeypatch.setattr(pipeline, "transform", fake_transform)
+    exception = MagicMock()
+    monkeypatch.setattr(pipeline.LOGGER, "exception", exception)
     with pytest.raises(RuntimeError, match="stop"):
         pipeline.run_pipeline("2023-02", database_url="postgresql://unused", fixture=True)
+    exception.assert_called_once()
+    assert json.loads(exception.call_args.args[0])["event"] == "pipeline_failed"
+    assert exception.call_args.kwargs["extra"]["source_month"] == "2023-02"

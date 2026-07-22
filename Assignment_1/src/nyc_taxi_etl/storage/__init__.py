@@ -1,4 +1,4 @@
-"""Storage package for MinIO/local file operations."""
+"""Local ETL output storage."""
 
 from nyc_taxi_etl.storage.minio import MinioClient, get_client
 

@@ -129,4 +129,4 @@ def test_required_sql_executes_and_matches_golden_values(conn: Connection[tuple[
 
     assert average == [(20230101, Decimal("15.00"))]
     assert peak[0][:4] == (1, "Late Night", "01:00", 2)
-    assert revenue == [(0, "Unknown", Decimal("20.00"), 1, Decimal("20.00"))]
+    assert revenue == [(0, "Unknown", Decimal("1019.00"), 2, Decimal("509.50"))]

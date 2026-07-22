@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-
 import polars as pl
 
 from dashboard.queries import decimal_to_float
@@ -20,10 +18,6 @@ def scalar(frame: pl.DataFrame, column: str) -> object:
 def delta_text(current: object, previous: object) -> str:
     change = percent_delta(current, previous)
     return "N/A" if change is None else f"{change:+.1f}% vs prior"
-
-
-def as_floats(values: Iterable[object]) -> list[float]:
-    return [decimal_to_float(value) for value in values]
 
 
 def movers(current: pl.DataFrame, previous: pl.DataFrame, key: str, label: str, value: str) -> pl.DataFrame:

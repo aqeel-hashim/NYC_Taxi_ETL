@@ -1,5 +1,13 @@
 """Validate Airflow DAGs parse without errors."""
 
+import runpy
+from collections.abc import Callable
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import cast
+
+import pytest
+
 from airflow.models import DagBag
 
 
@@ -13,3 +21,18 @@ def test_dagbag_import() -> None:
         assert dag is not None
         assert len(dag.tasks) > 0
     assert len(dagbag.import_errors) == 0, f"Import errors: {dagbag.import_errors}"
+
+
+def test_scheduled_run_selects_previous_calendar_month(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.syspath_prepend("airflow/dags")
+    source_month = cast(
+        Callable[[dict[str, object]], str],
+        runpy.run_path("airflow/dags/taxi_monthly_etl.py")["_source_month"],
+    )
+    context: dict[str, object] = {
+        "dag_run": SimpleNamespace(conf={}),
+        "data_interval_end": datetime(2023, 3, 5, 6, tzinfo=UTC),
+    }
+    assert source_month(context) == "2023-02"
+    context["dag_run"] = SimpleNamespace(conf={"source_month": "2023-01"})
+    assert source_month(context) == "2023-01"

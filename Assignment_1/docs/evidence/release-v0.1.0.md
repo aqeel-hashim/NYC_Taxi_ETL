@@ -1,6 +1,6 @@
 # Assignment 1 v0.1.0 Release Evidence
 
-Validated locally on 2026-07-22 with official TLC Parquet files.
+Validated locally on 2026-07-22 from the release ZIP with official TLC Parquet files.
 
 ## Real Two-Month ETL
 
@@ -25,13 +25,11 @@ Database assertions:
 
 ## Dashboard
 
-Live database AppTest:
+Manual AppTest against the loaded PostgreSQL database:
 
 - zero uncaught exceptions;
 - zero rendered errors;
 - five tabs;
-- nine Plotly charts;
-- fifteen data tables;
 - 263-feature official TLC taxi-zone GeoJSON;
 - desktop and 390 px mobile captures in `docs/images/`.
 
@@ -41,7 +39,7 @@ Command: `VERIFY_IMAGES=false ./scripts/verify.sh`
 
 - Ruff lint and format: pass
 - strict mypy: pass
-- pytest: 95 passed
+- pytest: see the current `./scripts/verify.sh` output; the count changes as checks are added
 - branch coverage: 86.31% (required: 85%)
 - Alembic fresh migration: pass
 - SQLFluff: pass

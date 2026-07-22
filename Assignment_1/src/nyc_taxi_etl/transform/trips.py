@@ -14,6 +14,7 @@ import polars as pl
 
 from nyc_taxi_etl.quality.issues import IssueCode
 from nyc_taxi_etl.quality.kll import DEFAULT_K, ThresholdBounds, build_sketch_from_iterable, compute_bounds
+from nyc_taxi_etl.transform.reference import PAYMENT_TYPE_LOOKUP, RATE_CODE_LOOKUP, VENDOR_LOOKUP
 
 MONTH_WINDOW_HOURS = 24  # dropoff allowed within 24h after month end
 
@@ -41,11 +42,11 @@ def transform(
 ) -> TransformResult:
     """Transform raw TLC DataFrame into accepted, rejected, and issue records."""
     if vendor_lookup is None:
-        vendor_lookup = _default_vendor_lookup()
+        vendor_lookup = VENDOR_LOOKUP
     if payment_lookup is None:
-        payment_lookup = _default_payment_lookup()
+        payment_lookup = PAYMENT_TYPE_LOOKUP
     if rate_code_lookup is None:
-        rate_code_lookup = _default_rate_code_lookup()
+        rate_code_lookup = RATE_CODE_LOOKUP
 
     month_start, month_end = _month_bounds(source_month)
 
@@ -262,8 +263,6 @@ def _convert_accepted(df: pl.DataFrame, *, kll_bounds: dict[str, ThresholdBounds
 def _build_issues(df: pl.DataFrame) -> pl.DataFrame:
     """Build sparse issue rows from flagged candidates. One row per flag per row."""
     issue_rows: list[dict[str, object]] = []
-    rejected_codes = IssueCode.rejection_codes()
-
     mapping: list[tuple[str, IssueCode]] = [
         ("_flag_unknown_vendor", IssueCode.UNKNOWN_VENDOR),
         ("_flag_unknown_payment", IssueCode.UNKNOWN_PAYMENT),
@@ -284,7 +283,7 @@ def _build_issues(df: pl.DataFrame) -> pl.DataFrame:
     for row in row_dicts:
         source_row = row["_source_row"]
         for col, code in mapping:
-            if row.get(col) and code not in rejected_codes:
+            if row.get(col):
                 issue_rows.append(
                     {
                         "source_row_number": source_row,
@@ -295,21 +294,3 @@ def _build_issues(df: pl.DataFrame) -> pl.DataFrame:
     if not issue_rows:
         return pl.DataFrame(schema={"source_row_number": pl.Int64, "issue_code": pl.Utf8})
     return pl.DataFrame(issue_rows)
-
-
-def _default_vendor_lookup() -> dict[int, str]:
-    from nyc_taxi_etl.transform.reference import VENDOR_LOOKUP
-
-    return VENDOR_LOOKUP
-
-
-def _default_payment_lookup() -> dict[int, str]:
-    from nyc_taxi_etl.transform.reference import PAYMENT_TYPE_LOOKUP
-
-    return PAYMENT_TYPE_LOOKUP
-
-
-def _default_rate_code_lookup() -> dict[int, str]:
-    from nyc_taxi_etl.transform.reference import RATE_CODE_LOOKUP
-
-    return RATE_CODE_LOOKUP

@@ -66,7 +66,6 @@ def _push_failure_metric(payload: dict[str, Any]) -> None:
     url = os.environ.get("PUSHGATEWAY_URL")
     if not url:
         return
-    # Fixed labels keep batch metrics bounded; run IDs and exception text stay in logs.
     body = 'taxi_batch_failures_total{source="airflow"} 1\n'
     response = requests.put(f"{url.rstrip('/')}/metrics/job/taxi_batch/outcome/failed", data=body, timeout=10)
     response.raise_for_status()

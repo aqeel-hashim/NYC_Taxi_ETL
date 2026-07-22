@@ -10,6 +10,7 @@ import pytest
 
 from alembic import command
 from alembic.config import Config
+from nyc_taxi_etl.load.warehouse import _ensure_month_support
 from nyc_taxi_etl.pipeline import run_pipeline
 from tests.fixtures.generate_taxi_fixture import write_fixture
 
@@ -64,6 +65,12 @@ def test_fixture_pipeline_loads_and_reruns(database_url: str) -> None:
         ).fetchone() == (2,)
         assert conn.execute(
             """
+            SELECT dag_id, status, started_at < finished_at, duration_seconds > 0
+            FROM ops.pipeline_run ORDER BY id DESC LIMIT 1
+            """
+        ).fetchone() == ("local", "success", True, True)
+        assert conn.execute(
+            """
             SELECT count(*) - count(DISTINCT (pickup_date_key, source_asset_id, source_version, source_row_number))
             FROM warehouse.fact_taxi_trips
             """
@@ -81,6 +88,17 @@ def test_pipeline_exit_codes(database_url: str) -> None:
     missing_db = subprocess.run(["./scripts/run-pipeline.sh", "2023-01", "--fixture"], cwd=ROOT, check=False)
     assert invalid.returncode == 2
     assert missing_db.returncode == 4
+
+
+def test_loader_creates_calendar_and_mart_partition_for_new_month(database_url: str) -> None:
+    with psycopg.connect(database_url.replace("postgresql+psycopg://", "postgresql://")) as conn:
+        _ensure_month_support(conn, "2024-03")
+        assert conn.execute(
+            "SELECT count(*) FROM warehouse.dim_date WHERE calendar_date BETWEEN '2024-03-01' AND '2024-04-01'"
+        ).fetchone() == (32,)
+        assert conn.execute("SELECT to_regclass('analytics.trip_metrics_hourly_2024_03') IS NOT NULL").fetchone() == (
+            True,
+        )
 
 
 def _sha256(path: Path) -> str:

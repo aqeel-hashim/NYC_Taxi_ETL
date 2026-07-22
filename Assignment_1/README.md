@@ -92,7 +92,7 @@ Full retained proof: [`docs/evidence/release-v0.1.0.md`](docs/evidence/release-v
 VERIFY_IMAGES=false ./scripts/verify.sh
 ```
 
-This runs dependency-lock validation, Ruff, formatting, mypy, Alembic on disposable PostgreSQL, 95 tests, branch coverage (minimum 85%), lifecycle shell tests, SQLFluff, and Compose validation.
+This runs dependency-lock validation, Ruff, formatting, mypy, Alembic on disposable PostgreSQL, pytest with branch coverage (minimum 85%), lifecycle shell tests, SQLFluff, and Compose validation.
 
 For a clean non-interactive evaluator run without leaving Streamlit in the foreground:
 
@@ -125,7 +125,7 @@ Detailed model: [`docs/data-model.md`](docs/data-model.md). Architecture: [`docs
 - Source months: January-February 2023, downloaded from official TLC CloudFront URLs.
 - Average fare per mile is `SUM(fare_amount) / SUM(trip_distance)`.
 - Revenue is summed `total_amount` for hard-valid, non-refund rows.
-- Financial/unit metrics exclude statistical outliers; demand counts retain hard-valid rows.
+- The required total-revenue query includes every accepted row. Dashboard unit metrics can exclude statistical outliers; demand counts always retain accepted rows.
 - Peak hour uses pickup count by America/New_York wall-clock hour.
 - Local Airflow uses `SequentialExecutor` to fit evaluator hardware. KubernetesExecutor is an optional extended platform, not required for the one-command assessment demo.
 - Synthetic fixture data is test-only unless official source download fails and fallback is explicitly requested.

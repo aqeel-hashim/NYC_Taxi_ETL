@@ -17,11 +17,10 @@ from datetime import UTC, datetime
 
 from datasketches import kll_floats_sketch
 
-# Increase of default of tlc dataset
+# Higher precision than the library default for multi-million-row months.
 DEFAULT_K = 4096
 BOUND_QUANTILE_LOW = 0.001
 BOUND_QUANTILE_HIGH = 0.999
-CALIBRATION_METRICS = ("duration_seconds", "distance_millimiles", "speed_mph", "fare_per_mile_cents_per_millimile")
 
 
 @dataclass

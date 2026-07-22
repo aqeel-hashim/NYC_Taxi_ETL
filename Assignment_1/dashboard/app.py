@@ -12,7 +12,11 @@ import streamlit as st
 
 from dashboard import queries
 from dashboard.state import DashboardFilters, FilterOptions, Option, is_stale, prior_month_range
-from dashboard.tabs import render_demand, render_explore, render_overview, render_quality, render_revenue
+from dashboard.tabs.demand import render as render_demand
+from dashboard.tabs.explore import render as render_explore
+from dashboard.tabs.overview import render as render_overview
+from dashboard.tabs.quality import render as render_quality
+from dashboard.tabs.revenue import render as render_revenue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -151,7 +155,7 @@ def _publication_messages(publications: pl.DataFrame) -> None:
         st.warning(
             "Synthetic source data is visible in this selection. Do not present these values as official TLC results."
         )
-    stale_hours = int(os.environ.get("DASHBOARD_STALE_HOURS", "36"))
+    stale_hours = int(os.environ.get("DASHBOARD_STALE_HOURS", "744"))
     if is_stale(latest.get("published_at"), stale_hours=stale_hours):
         st.warning(f"Warehouse publication is stale (older than {stale_hours} hours). Check the monthly ETL status.")
     status = str(latest.get("status", "unknown"))

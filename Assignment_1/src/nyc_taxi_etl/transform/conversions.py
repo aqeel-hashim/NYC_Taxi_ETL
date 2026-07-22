@@ -1,4 +1,4 @@
-"""Converter functions: float dollars → integer cents, float miles → integer millimiles, etc."""
+"""Scalar conversion helpers retained for external ETL callers."""
 
 from math import isnan
 

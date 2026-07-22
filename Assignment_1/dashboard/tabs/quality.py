@@ -47,7 +47,7 @@ def render(data: DashboardData) -> None:
         )
         st.dataframe(data.publications, hide_index=True, width="stretch")
 
-    st.markdown("#### Reject and flag reasons")
+    st.markdown("#### Accepted-row flag reasons")
     if data.quality.is_empty():
         st.info("No quality issues were recorded for this range.")
     else:
@@ -63,9 +63,9 @@ def render(data: DashboardData) -> None:
         st.info("Source fingerprint metadata is unavailable for this selection.")
     else:
         st.dataframe(data.fingerprints, hide_index=True, width="stretch")
-    st.markdown("#### Latest 20 failed runs")
+    st.markdown("#### Recorded failed runs")
     if data.alerts.is_empty():
-        st.success("No recent pipeline failure alerts.")
+        st.info("No failed runs are recorded in the warehouse.")
     else:
         st.dataframe(data.alerts, hide_index=True, width="stretch")
     links = [
