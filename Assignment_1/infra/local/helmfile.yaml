@@ -3,14 +3,22 @@ repositories:
     url: https://charts.bitnami.com/bitnami
   - name: traefik
     url: https://traefik.github.io/charts
-  - name: prometheus-community
-    url: https://prometheus-community.github.io/helm-charts
   - name: grafana
     url: https://grafana.github.io/helm-charts
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
   - name: minio
     url: https://charts.min.io/
+  - name: apache-airflow
+    url: https://airflow.apache.org
+  - name: dex
+    url: https://dexidp.github.io/helm-charts
+  - name: oauth2-proxy
+    url: https://oauth2-proxy.github.io/manifests
+  - name: mailpit
+    url: https://mailpit.250bpm.com/charts
 
 releases:
   - name: traefik
@@ -24,13 +32,6 @@ releases:
     namespace: data-platform
     chart: cnpg/cloudnative-pg
     version: 0.23.2
-
-  - name: postgresql
-    namespace: data-platform
-    chart: cnpg/cluster
-    version: 0.0.12
-    values:
-      - values/postgresql.yaml
 
   - name: minio
     namespace: data-platform
@@ -60,6 +61,20 @@ releases:
     values:
       - values/loki.yaml
 
+  - name: alloy
+    namespace: monitoring
+    chart: grafana/alloy
+    version: 1.0.0
+    values:
+      - values/alloy.yaml
+
+  - name: pushgateway
+    namespace: monitoring
+    chart: prometheus-community/prometheus-pushgateway
+    version: 3.0.0
+    values:
+      - values/pushgateway.yaml
+
   - name: dex
     namespace: identity
     chart: dex/dex
@@ -80,3 +95,7 @@ releases:
     version: 0.1.0
     values:
       - values/mailpit.yaml
+
+  - name: taxi-app
+    namespace: taxi-app
+    chart: ./charts/taxi-app

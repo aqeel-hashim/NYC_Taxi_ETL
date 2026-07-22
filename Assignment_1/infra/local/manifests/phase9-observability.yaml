@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-loki
+  namespace: monitoring
+  labels: {grafana_datasource: "1"}
+data:
+  loki.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki-gateway.monitoring.svc.cluster.local
+        jsonData: {maxLines: 1000}
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow-pushgateway
+  namespace: data-platform
+spec:
+  order: 190
+  selector: component in {"scheduler", "worker"}
+  types: ["Egress"]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "monitoring"
+        ports: [9091]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: taxi-platform-alerts
+  namespace: monitoring
+  labels: {release: kube-prometheus-stack}
+spec:
+  groups:
+    - name: taxi.platform
+      rules:
+        - record: taxi:batch_failures:rate5m
+          expr: sum(rate(taxi_batch_failures_total[5m]))
+        - alert: TaxiBatchFailure
+          expr: increase(taxi_batch_failures_total[15m]) > 0
+          for: 2m
+          labels: {severity: warning, service: airflow}
+          annotations: {summary: "NYC Taxi batch task failed"}
+        - alert: PrometheusTargetMissing
+          expr: up{job=~"airflow|cnpg|minio|pushgateway"} == 0
+          for: 5m
+          labels: {severity: warning}
+          annotations: {summary: "Expected monitoring target is down"}
+        - alert: CNPGBackupStale
+          expr: time() - cnpg_collector_last_available_backup_timestamp > 93600
+          for: 15m
+          labels: {severity: critical, service: postgresql}
+          annotations: {summary: "CNPG backup is older than 26 hours"}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-platform-health
+  namespace: monitoring
+  labels: {grafana_dashboard: "1"}
+data:
+  platform-health.json: |
+    {"title":"Platform Health","schemaVersion":39,"panels":[{"type":"stat","title":"Ready pods","targets":[{"expr":"sum(kube_pod_status_phase{phase=\"Running\"})"}]},{"type":"timeseries","title":"Unavailable targets","targets":[{"expr":"sum(up == 0)"}]},{"type":"logs","title":"Service logs","targets":[{"expr":"{namespace=~\"data-platform|monitoring\"}"}]}]}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-batch-pipeline
+  namespace: monitoring
+  labels: {grafana_dashboard: "1"}
+data:
+  batch-pipeline.json: |
+    {"title":"Batch Pipeline","schemaVersion":39,"panels":[{"type":"stat","title":"Failures (15m)","targets":[{"expr":"increase(taxi_batch_failures_total[15m])"}]},{"type":"timeseries","title":"Batch outcomes","targets":[{"expr":"sum by (outcome) (taxi_batch_outcomes_total)"}]},{"type":"logs","title":"Airflow task logs","targets":[{"expr":"{namespace=\"data-platform\", service=~\"airflow.*\"}"}]}]}

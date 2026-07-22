@@ -1,0 +1,4 @@
+bucket_prefix = "nyc-taxi-REPLACE_ACCOUNT_ID"
+owner         = "REPLACE_OWNER"
+cost_center   = "REPLACE_COST_CENTER"
+github_repository             = "REPLACE_OWNER/REPLACE_REPOSITORY"

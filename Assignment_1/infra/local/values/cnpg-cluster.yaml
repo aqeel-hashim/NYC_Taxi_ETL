@@ -14,20 +14,17 @@ spec:
       owner: taxi_app
       secret:
         name: taxi-app-password
-  databases:
-    - name: airflow
-      owner: airflow
-  roles:
-    - name: taxi_app
-      login: true
-      passwordSecret:
-        name: taxi-app-password
-    - name: airflow
-      login: true
-      passwordSecret:
-        name: airflow-password
+      postInitApplicationSQLRefs:
+        secretRefs:
+          - name: database-bootstrap-sql
+            key: bootstrap.sql
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: taxi-backups
   resources:
     requests:
       memory: 128Mi

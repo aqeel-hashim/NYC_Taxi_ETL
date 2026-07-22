@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
+from alerting import notify_failure
 
 from airflow.decorators import dag, task
 from nyc_taxi_etl.pipeline import run_pipeline
@@ -39,12 +41,15 @@ def _source_month(context: dict[str, object]) -> str:
     start_date=datetime(2023, 1, 1),
     catchup=False,
     max_active_runs=1,
+    on_failure_callback=notify_failure,
     tags=["taxi", "etl"],
 )
 def taxi_monthly_etl() -> None:
     @task(task_id="check_source")
     def check_source(**context: object) -> str:
         month = _source_month(context)
+        if Path(f"data/yellow_tripdata_{month}.parquet").is_file():
+            return month
         url = SOURCE_URL.format(month=month)
         resp = requests.head(url, timeout=10)
         resp.raise_for_status()
@@ -73,8 +78,8 @@ def taxi_monthly_etl() -> None:
         )
 
     month = check_source()
-    counts = publish_month(month=month)
-    complete(counts)
+    counts = publish_month(month=month)  # type: ignore[arg-type]
+    complete(counts)  # type: ignore[arg-type]
 
 
 taxi_monthly_etl()

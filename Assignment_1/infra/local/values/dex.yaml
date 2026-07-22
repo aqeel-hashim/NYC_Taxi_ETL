@@ -1,27 +1,44 @@
-config:
-  issuer: https://dex.taxi.localhost:8443
-  storage:
-    type: sqlite3
-    config:
-      file: /var/dex/dex.db
-  staticClients:
-    - id: taxi-app
-      name: Taxi App
-      secretEnv: DEX_CLIENT_SECRET
-  staticPasswords:
-    - email: admin@taxi.local
-      hash: "$2a$10$2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2q2r2s2t2u2v2w2x2y2z2A2B2C"
-      username: admin
-      userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-    - email: viewer@taxi.local
-      hash: "$2a$10$2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2q2r2s2t2u2v2w2x2y2z2A2B2C"
-      username: viewer
-      userID: "18a8684b-db88-4b73-90a9-3cd1661f5466"
+configSecret:
+  create: false
+  name: dex-config
+envFrom:
+  - secretRef:
+      name: dex-client-secrets
+volumes:
+  - name: dex-storage
+    emptyDir: {}
+volumeMounts:
+  - name: dex-storage
+    mountPath: /var/dex
 ingress:
   enabled: true
   className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.tls: "true"
   hosts:
     - host: dex.taxi.localhost
       paths:
         - path: /
           pathType: Prefix
+  tls:
+    - hosts:
+        - dex.taxi.localhost
+      secretName: taxi-tls-cert
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi

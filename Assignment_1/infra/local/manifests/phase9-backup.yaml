@@ -1,0 +1,13 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: taxi-backups
+  namespace: data-platform
+spec:
+  configuration:
+    destinationPath: s3://cnpg-backups/taxi-warehouse
+    endpointURL: http://minio.data-platform.svc.cluster.local:9000
+    s3Credentials:
+      accessKeyId: {name: cnpg-barman-s3, key: ACCESS_KEY_ID}
+      secretAccessKey: {name: cnpg-barman-s3, key: SECRET_ACCESS_KEY}
+  retentionPolicy: 7d

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 from collections.abc import Mapping
@@ -145,15 +146,20 @@ def _replace_month_facts(
     source_version: str,
 ) -> None:
     month_start, month_end = _month_key_bounds(result.source_month)
+
+    # Remove existing partition for this month before loading
+    _remove_partition(conn, result.source_month, month_start, month_end)
+
     if result.accepted_rows == 0:
-        _detach_and_delete_partition(conn, result.source_month, month_start, month_end)
         return
 
     vendor_keys = _surrogate_map(conn, "dim_vendor")
     payment_keys = _surrogate_map(conn, "dim_payment_type")
     rate_keys = _surrogate_map(conn, "dim_rate_code")
+    zone_keys = _surrogate_map(conn, "dim_taxi_zone")
 
     staging = _staging_partition_name(result.source_month)
+    canonical = _canonical_partition_name(result.source_month)
     cols = (
         "pickup_date_key, dropoff_date_key, pickup_time_key, dropoff_time_key, "
         "pickup_zone_key, dropoff_zone_key, payment_type_key, vendor_key, rate_code_key, "
@@ -164,19 +170,29 @@ def _replace_month_facts(
         "source_row_number, source_version, has_statistical_outlier, has_quality_issue"
     )
 
-    # Create staging partition with same structure
-    _create_staging_partition(conn, staging, month_start, month_end)
+    # Create and populate staging table
+    _create_staging_table(conn, staging, month_start, month_end)
     try:
         with (
             conn.cursor() as cur,
             cur.copy(f"COPY warehouse.{staging} ({cols}) FROM STDIN") as copy,
         ):
             for row in result.accepted.iter_rows(named=True):
-                copy.write_row(_fact_row(row, source_asset_id, source_version, vendor_keys, payment_keys, rate_keys))
+                copy.write_row(
+                    _fact_row(row, source_asset_id, source_version, zone_keys, vendor_keys, payment_keys, rate_keys)
+                )
 
-        _detach_and_attach_partition(conn, result.source_month, staging, month_start, month_end)
+        # Attach as partition, then rename to canonical
+        conn.execute(
+            f"ALTER TABLE warehouse.fact_taxi_trips ATTACH PARTITION warehouse.{staging} "
+            f"FOR VALUES FROM ({month_start}) TO ({month_end})"
+        )
+        conn.execute(f"ALTER TABLE warehouse.{staging} DROP CONSTRAINT IF EXISTS {staging}_month_check")
+        if staging != canonical:
+            conn.execute(f"ALTER TABLE warehouse.{staging} RENAME TO {canonical}")
     except BaseException:
-        conn.execute(f"DROP TABLE IF EXISTS warehouse.{staging} CASCADE")
+        with contextlib.suppress(Exception):
+            conn.execute(f"DROP TABLE IF EXISTS warehouse.{staging} CASCADE")
         raise
 
 
@@ -188,14 +204,16 @@ def _staging_partition_name(source_month: str) -> str:
     return f"fact_taxi_trips_staging_{_partition_safe_name(source_month)}"
 
 
-def _detached_partition_name(source_month: str) -> str:
-    return f"fact_taxi_trips_detached_{_partition_safe_name(source_month)}"
+def _canonical_partition_name(source_month: str) -> str:
+    return f"fact_taxi_trips_{_partition_safe_name(source_month)}"
 
 
-def _find_current_partition(conn: Connection[tuple[object, ...]], source_month: str) -> str | None:
-    month_start, month_end = _month_key_bounds(source_month)
-    result = conn.execute(
-        """
+def _remove_partition(
+    conn: Connection[tuple[object, ...]], source_month: str, month_start: int, month_end: int
+) -> None:
+    result = (
+        conn.execute(
+            """
         SELECT inhrelid::regclass::text
         FROM pg_inherits i
         JOIN pg_class p ON i.inhrelid = p.oid
@@ -203,56 +221,22 @@ def _find_current_partition(conn: Connection[tuple[object, ...]], source_month: 
         WHERE n.nspname = 'warehouse'
         AND p.relkind = 'r'
         AND i.inhparent = 'warehouse.fact_taxi_trips'::regclass
-        AND EXISTS (
-            SELECT 1 FROM pg_class c2
-            JOIN pg_namespace n2 ON c2.relnamespace = n2.oid
-            WHERE c2.oid = i.inhrelid
-            AND c2.relispartition = true
-        )
+        AND p.relispartition = true
         """
-    ).fetchall() or []
-    expected = f"fact_taxi_trips_{_partition_safe_name(source_month)}"
+        ).fetchall()
+        or []
+    )
+    canonical = f"warehouse.{_canonical_partition_name(source_month)}"
     for row in result:
         name = str(row[0]) if row[0] is not None else ""
-        if name == expected:
-            return name
-    for row in result:
-        name = str(row[0]) if row[0] is not None else ""
-        bounds = _partition_bound_from_name(name)
-        if bounds is not None and bounds[0] == month_start and bounds[1] == month_end:
-            return name
-    return None
+        if name == canonical:
+            conn.execute(f"ALTER TABLE warehouse.fact_taxi_trips DETACH PARTITION {name}")
+            conn.execute(f"DROP TABLE IF EXISTS {name} CASCADE")
+            return
 
 
-def _partition_bound_from_name(name: str) -> tuple[int, int] | None:
-    parts = name.rsplit("_", 2)
-    if len(parts) != 3:
-        return None
-    try:
-        year = int(parts[1])
-        month = int(parts[2])
-        start = year * 10000 + month * 100 + 1
-        if month == 12:
-            return start, (year + 1) * 10000 + 101
-        return start, year * 10000 + (month + 1) * 100 + 1
-    except (ValueError, IndexError):
-        return None
-
-
-def _detach_and_delete_partition(
-    conn: Connection[tuple[object, ...]], source_month: str, month_start: int, month_end: int
-) -> None:
-    current = _find_current_partition(conn, source_month)
-    if current:
-        detached = _detached_partition_name(source_month)
-        conn.execute(f"ALTER TABLE warehouse.fact_taxi_trips DETACH PARTITION warehouse.{current}")
-        conn.execute(f"ALTER TABLE warehouse.{current} RENAME TO {detached}")
-        conn.execute(f"DROP TABLE IF EXISTS warehouse.{detached} CASCADE")
-
-
-def _create_staging_partition(
-    conn: Connection[tuple[object, ...]], staging: str, month_start: int, month_end: int
-) -> None:
+def _create_staging_table(conn: Connection[tuple[object, ...]], staging: str, month_start: int, month_end: int) -> None:
+    conn.execute(f"DROP TABLE IF EXISTS warehouse.{staging}")
     conn.execute(
         f"""
         CREATE TABLE warehouse.{staging} (
@@ -264,22 +248,6 @@ def _create_staging_partition(
         f"ALTER TABLE warehouse.{staging} ADD CONSTRAINT {staging}_month_check "
         f"CHECK (pickup_date_key >= {month_start} AND pickup_date_key < {month_end})"
     )
-
-
-def _detach_and_attach_partition(
-    conn: Connection[tuple[object, ...]], source_month: str, staging: str, month_start: int, month_end: int
-) -> None:
-    current = _find_current_partition(conn, source_month)
-    if current:
-        detached = _detached_partition_name(source_month)
-        conn.execute(f"ALTER TABLE warehouse.fact_taxi_trips DETACH PARTITION warehouse.{current}")
-        conn.execute(f"ALTER TABLE warehouse.{current} RENAME TO {detached}")
-        conn.execute(f"DROP TABLE IF EXISTS warehouse.{detached} CASCADE")
-    conn.execute(
-        f"ALTER TABLE warehouse.fact_taxi_trips ATTACH PARTITION warehouse.{staging} "
-        f"FOR VALUES FROM ({month_start}) TO ({month_end})"
-    )
-    conn.execute(f"ALTER TABLE warehouse.{staging} DROP CONSTRAINT IF EXISTS {staging}_month_check")
 
 
 def _surrogate_map(conn: Connection[tuple[object, ...]], table: str) -> dict[int, int]:
@@ -295,6 +263,7 @@ def _fact_row(
     row: dict[str, object],
     source_asset_id: str,
     source_version: str,
+    zone_keys: Mapping[int, int],
     vendor_keys: Mapping[int, int],
     payment_keys: Mapping[int, int],
     rate_keys: Mapping[int, int],
@@ -308,8 +277,8 @@ def _fact_row(
         int(dropoff.strftime("%Y%m%d")),
         pickup.hour * 60 + pickup.minute,
         dropoff.hour * 60 + dropoff.minute,
-        0,
-        0,
+        zone_keys.get(_as_int(row["pickup_location_id"]), 0),
+        zone_keys.get(_as_int(row["dropoff_location_id"]), 0),
         payment_keys.get(_as_int(row["payment_type_id"]), 0),
         vendor_keys.get(_as_int(row["vendor_id"]), 0),
         rate_keys.get(_as_int(row["rate_code_id"]), 0),
@@ -360,6 +329,7 @@ def _record_run(conn: Connection[tuple[object, ...]], result: TransformResult, *
 
 
 def _record_quality(conn: Connection[tuple[object, ...]], result: TransformResult) -> None:
+    conn.execute("DELETE FROM ops.quality_result_summary WHERE source_month = %s", (result.source_month,))
     for issue_code, count in result.issues.group_by("issue_code").len().iter_rows() if len(result.issues) else []:
         conn.execute(
             """
@@ -386,6 +356,7 @@ def _duplicate_source_count(
 
 
 def _record_trip_quality_issues(conn: Connection[tuple[object, ...]], result: TransformResult) -> None:
+    conn.execute("DELETE FROM ops.trip_quality_issue WHERE source_month = %s", (result.source_month,))
     issues = result.issues
     if not len(issues):
         return
@@ -442,7 +413,7 @@ def _populate_analytics_mart(conn: Connection[tuple[object, ...]], source_month:
         GROUP BY pickup_date_key, pickup_hour, pickup_zone_key, payment_type_key, vendor_key, rate_code_key,
             has_statistical_outlier, has_quality_issue
         """,
-        (month_start, month_end, month_start, month_end),
+        (month_start, month_end),
     )
 
 

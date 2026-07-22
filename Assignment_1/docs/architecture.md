@@ -1,10 +1,22 @@
 # Architecture
 
-**Target architecture. Not yet deployed. Active implementation: Phases 5-14.**
+The evaluator path runs PostgreSQL in Docker, Airflow locally with `SequentialExecutor`, and Streamlit as a host process. It is validated with the complete January-February dataset.
 
-## Local Platform
+The Kubernetes and AWS sections describe the optional production-oriented extension.
 
-Target design: kind cluster with five namespaces:
+## Evaluator Platform
+
+```text
+TLC CloudFront -> curl/Parquet -> Airflow DAG -> Polars ETL
+                                              |-> Parquet quarantine
+                                              |-> PostgreSQL star schema -> analytics mart -> Streamlit
+```
+
+Local Airflow uses SQLite only for orchestrator metadata. Business data always resides in PostgreSQL.
+
+## Extended Local Platform
+
+Optional design: kind cluster with five namespaces:
 
 | Namespace | Contents |
 |-----------|----------|

@@ -5,11 +5,15 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from alerting import notify_failure
+
 from airflow.decorators import dag, task
 from airflow.exceptions import AirflowFailException
+from airflow.utils.context import Context
 
 
-def write_failure_evidence(context: dict[str, object]) -> None:
+def write_failure_evidence(context: Context) -> None:
+    notify_failure(context)
     evidence_path = os.environ.get("ALERT_EVIDENCE_PATH")
     if not evidence_path:
         return
@@ -33,7 +37,7 @@ def write_failure_evidence(context: dict[str, object]) -> None:
     on_failure_callback=write_failure_evidence,
 )
 def taxi_failure_drill() -> None:
-    @task(on_failure_callback=write_failure_evidence, retries=0)
+    @task(retries=0)
     def controlled_fail() -> None:
         raise AirflowFailException("Controlled failure drill")
 

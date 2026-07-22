@@ -1,20 +1,53 @@
 config:
-  clientID: taxi-app
-  clientSecret: ""
-  cookieSecret: ""
-  oauthProvider: dex
-  oidcIssuerURL: https://dex.taxi.localhost:8443
-  upstreams:
-    - file:///dev/null
+  existingSecret: oauth2-proxy-secrets
+  configFile: |-
+    email_domains = [ "*" ]
+    upstreams = [ "file:///dev/null" ]
 extraArgs:
   provider: oidc
-  scope: "openid email profile"
-  set-authorization-header: "true"
+  oidc-issuer-url: https://dex.taxi.localhost:8443
+  redirect-url: https://auth.taxi.localhost:8443/oauth2/callback
+  provider-ca-file: /etc/taxi-ca/rootCA.pem
+  scope: "openid email profile groups"
+  reverse-proxy: "true"
+  set-xauthrequest: "true"
   cookie-secure: "true"
-  pass-authorization-header: "true"
-  pass-user-headers: "true"
-  whitelist-domains: "*.taxi.localhost"
+  cookie-domain: .taxi.localhost
+  cookie-samesite: "lax"
+  pass-authorization-header: "false"
+  pass-user-headers: "false"
+  skip-provider-button: "true"
+  whitelist-domain: ".taxi.localhost:8443"
+extraVolumes:
+  - name: taxi-ca
+    secret:
+      secretName: taxi-ca
+extraVolumeMounts:
+  - name: taxi-ca
+    mountPath: /etc/taxi-ca
+    readOnly: true
+serviceAccount:
+  automountServiceAccountToken: false
+podDisruptionBudget:
+  enabled: false
+ingress:
+  enabled: true
+  className: traefik
+  path: /oauth2
+  pathType: Prefix
+  hosts:
+    - auth.taxi.localhost
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  tls:
+    - hosts:
+        - auth.taxi.localhost
+      secretName: taxi-tls-cert
 resources:
   requests:
     memory: 64Mi
     cpu: 50m
+  limits:
+    memory: 128Mi
+    cpu: 250m

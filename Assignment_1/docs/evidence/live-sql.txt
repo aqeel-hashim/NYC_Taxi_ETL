@@ -1,0 +1,8 @@
+average_fare_per_mile.sql
+[(20230101, Decimal('15.00')), (20230102, Decimal('15.00')), (20230131, Decimal('15.00'))]
+
+peak_ride_hours.sql
+[(1, 'Late Night', '01:00', 2), (23, 'Evening', '23:00', 1), (9, 'Morning', '09:00', 1)]
+
+revenue_by_payment_type.sql
+[(2, 'Cash', Decimal('100.00'), 2, Decimal('50.00')), (0, 'Unknown', Decimal('50.00'), 1, Decimal('50.00')), (1, 'Credit card', Decimal('20.00'), 1, Decimal('20.00'))]

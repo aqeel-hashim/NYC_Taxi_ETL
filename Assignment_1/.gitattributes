@@ -1,0 +1,3 @@
+docs/implementation-plan.md export-ignore
+infra/local/generated export-ignore
+.gitattributes export-ignore

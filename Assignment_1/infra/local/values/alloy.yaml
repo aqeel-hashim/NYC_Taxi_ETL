@@ -1,0 +1,23 @@
+controller:
+  type: daemonset
+alloy:
+  configMap:
+    content: |
+      logging { level = "info" format = "logfmt" }
+      loki.write "default" {
+        endpoint { url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push" }
+      }
+      discovery.kubernetes "pods" { role = "pod" }
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+        rule { source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"] target_label = "service" }
+        rule { source_labels = ["__meta_kubernetes_namespace"] target_label = "namespace" }
+        rule { source_labels = ["__meta_kubernetes_pod_name"] target_label = "pod" }
+      }
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.default.receiver]
+      }
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {cpu: 250m, memory: 256Mi}

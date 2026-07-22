@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        rewrite name exact dex.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact auth.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact airflow.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact minio.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact mailpit.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact alerts.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact grafana.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact prometheus.taxi.localhost traefik.ingress.svc.cluster.local
+        rewrite name exact streamlit.taxi.localhost traefik.ingress.svc.cluster.local
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+            max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }

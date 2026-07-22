@@ -1,6 +1,8 @@
 loki:
   commonConfig:
     replication_factor: 1
+  limits_config:
+    retention_period: 336h
   storage:
     type: filesystem
   schemaConfig:
@@ -23,3 +25,4 @@ singleBinary:
       cpu: 500m
   persistence:
     size: 5Gi
+    storageClass: standard

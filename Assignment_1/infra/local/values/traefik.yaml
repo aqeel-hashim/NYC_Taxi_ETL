@@ -1,12 +1,54 @@
 ingressClass:
   enabled: true
   isDefaultClass: true
+deployment:
+  kind: DaemonSet
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+gateway:
+  enabled: false
+gatewayClass:
+  enabled: false
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true
 ports:
   web:
-    port: 8080
+    port: 8000
+    hostPort: 8080
+    expose:
+      default: true
+    exposedPort: 8080
+    redirections:
+      entryPoint:
+        to: websecure
+        scheme: https
+        permanent: true
   websecure:
     port: 8443
+    hostPort: 8443
     tls:
       enabled: true
+    expose:
+      default: true
+    exposedPort: 8443
 service:
   type: ClusterIP
+globalArguments: []
+logs:
+  access:
+    enabled: true
+    format: json
+    fields:
+      headers:
+        defaultmode: drop
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

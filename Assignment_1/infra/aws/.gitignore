@@ -1,0 +1,10 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan.json
+.terraform.lock.hcl.tmp
+cloud.auto.tfvars
+cloud.auto.tfvars.json
+backend.hcl
+infracost.json

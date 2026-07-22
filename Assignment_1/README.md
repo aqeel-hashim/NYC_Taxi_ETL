@@ -1,110 +1,135 @@
-# Assignment 1: Batch ETL
+# Assignment 1: NYC Yellow Taxi Batch ETL
 
-Status: Phases 0-4 (core ETL): PASS. Phases 5-14: IN PROGRESS.
+Local automated batch pipeline for January and February 2023 NYC Yellow Taxi data. Apache Airflow executes Python/Polars ETL, PostgreSQL stores a dimensional model, and Streamlit presents demand, revenue, trip, and quality metrics.
 
-## Truth Matrix
+## Run It
 
-| Phase | Description | Verifier Gate |
-|-------|-------------|---------------|
-| 0 | Architecture decisions | PASS |
-| 1 | Bootstrap toolchain | PASS |
-| 2 | Data contract, fixtures, transform | PASS |
-| 3 | KLL calibration | PASS |
-| 4 | PostgreSQL schema + SQL | PASS |
-| 5 | Object storage, load, atomic publish | PASS |
-| 6 | Airflow DAGs + runtime images | PASS |
-| 7 | Kubernetes vertical slice | PARTIAL (scripts/values; needs cluster) |
-| 8 | Ingress, TLS, OIDC, alerts | PARTIAL (values; needs deploy) |
-| 9 | Monitoring, logging, recovery | PARTIAL (values; needs deploy) |
-| 10 | Executive dashboard | PARTIAL (three-metric dashboard) |
-| 11 | Complete setup + demo | PARTIAL (preflight; deploy pending) |
-| 12 | CI, release, supply chain | PARTIAL (CI runs verify) |
-| 13 | Guarded AWS Terraform | PARTIAL (module exists) |
-| 14 | Final docs + review | NOT_STARTED |
-
-## Verified Commands
+From this directory:
 
 ```bash
-./setup.sh --only preflight
-DATABASE_URL="$TEST_DATABASE_URL" .venv/bin/alembic upgrade head
-DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01 --fixture
-DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-01
-DATABASE_URL="$TEST_DATABASE_URL" ./scripts/run-pipeline.sh 2023-02
-TEST_DATABASE_URL="$TEST_DATABASE_URL" ./scripts/verify.sh
-docker build -f docker/airflow.Dockerfile -t nyc-taxi-airflow:test .
-docker build -f docker/dashboard.Dockerfile -t nyc-taxi-dashboard:test .
+bash ./setup.sh --local-demo
 ```
 
-## Requirement Traceability
+The command:
 
-| Requirement | Phase | Gate |
-|-------------|-------|------|
-| Bash `setup.sh`, virtual env, Docker PostgreSQL, `curl`/`wget` download | 1, 11 | PASS |
-| `schema.sql` with fact table + ≥3 dimensions | 4 | PASS |
-| Modern orchestrator (Airflow) | 6, 7 | PASS (DAGs, calibration, failure drill) |
-| Structured logging (start/end, row counts, errors) | 6 | PASS (JSON logs) |
-| Orchestrator alerts on failure | 8, 9 | PARTIAL (webhook receiver exists; no live deploy) |
-| SQL: average fare per mile | 4 | PASS |
-| SQL: peak ride hours | 4 | PASS |
-| SQL: revenue by payment type | 4 | PASS |
-| Single-page Streamlit dashboard | 10 | PASS (three-metric dashboard) |
+1. validates the Linux/Docker host;
+2. downloads a checksum-verified pinned `uv` binary;
+3. installs repo-local Python 3.12 and a `.venv`;
+4. starts PostgreSQL with Docker Compose;
+5. downloads January and February 2023 with `curl` using atomic `.part` files;
+6. applies Alembic migrations;
+7. executes both monthly runs through the `taxi_monthly_etl` Airflow DAG;
+8. verifies both fact partitions, zone keys, and dashboard aggregate totals;
+9. serves Streamlit at <http://localhost:8501>.
 
-## Agreed Assumptions
+First run: usually 10-20 minutes depending on network, CPU, and disk. Keep the terminal open while using Streamlit. Press `Ctrl-C` to stop Streamlit; PostgreSQL remains available for inspection.
 
-- NYC Yellow Taxi January-February 2023.
-- Airflow KubernetesExecutor on kind, PostgreSQL (CloudNativePG), Polars, MinIO, Streamlit/Plotly.
-- Average fare per mile = ratio of summed fare to summed distance (not average trip-level ratios).
-- Revenue = summed `total_amount` for hard-valid, non-refund rows.
-- Financial/unit metrics exclude statistical outliers; demand counts retain all hard-valid rows.
-- Peak hour = pickup trip count by local NYC wall-clock hour.
-- Hardware may use staged/stage-by-stage activation. Multi-broker Kafka is Assignment 2.
+```bash
+bash ./teardown.sh --local
+```
 
-## Architecture Decisions
+This stops local containers but preserves the PostgreSQL volume. See [`docs/demo-runbook.md`](docs/demo-runbook.md) for inspection and reset commands.
 
-| ADR | Decision |
-|-----|----------|
-| [0001](docs/adr/0001-kubernetes-executor.md) | KubernetesExecutor for Airflow |
-| [0002](docs/adr/0002-minio-object-store.md) | MinIO as local S3-compatible object store |
-| [0003](docs/adr/0003-kll-outlier-detection.md) | KLL sketches for statistical outlier detection |
-| [0004](docs/adr/0004-observed-time-scd2.md) | Observed-time SCD2 for reference dimensions |
-| [0005](docs/adr/0005-aggregate-analytics-mart.md) | Incremental aggregate analytics mart |
-| [0006](docs/adr/0006-resource-profiles.md) | Staged and concurrent resource profiles |
-| [0007](docs/adr/0007-oidc-authentication.md) | OIDC auth with Dex and oauth2-proxy |
-| [0008](docs/adr/0008-observability.md) | kube-prometheus-stack + Loki observability |
-| [0009](docs/adr/0009-aws-eks-production.md) | AWS EKS as production target |
+## Host Prerequisites
 
-## Non-Goals
+Setup is distribution-neutral: it detects dependencies but never invokes `sudo`, `apt`, `dnf`, `yum`, `pacman`, `zypper`, `xbps`, or `apk`.
 
-- Assignment 2 Kafka streaming in Assignment 1.
-- 50,000 streaming events/second in Assignment 1.
-- Public 100,000-client API/web frontend.
-- EKS Airflow and MWAA simultaneously deployed.
-- Redshift enabled by default.
-- Spark locally; documented threshold for AWS migration.
-- Second full Docker Compose platform.
-- Full rejected rows in PostgreSQL.
-- Silent data repair, winsorization, or synthesis.
+| Requirement | Notes |
+|---|---|
+| glibc Linux x86_64/aarch64 or WSL2 | Automatic bootstrap does not support Alpine/musl |
+| Bash 4+ | Run scripts with `bash` after ZIP extraction |
+| Docker Engine/Desktop | Daemon must be running and usable by the current user |
+| Docker Compose v2 | `docker compose version` must succeed |
+| `curl`, current CA certificates, `openssl` | HTTPS downloads and generated local secrets |
+| GNU-compatible `tar`, `gzip`, `sha256sum`, `awk`, `grep`, `find`, `install`, `df`, `dd`, `tail`, `tee` | Checked before setup mutates local state |
+| Outbound HTTPS/DNS | GitHub Releases, Python package indexes, Docker registry, TLC CloudFront |
+| 4 GiB RAM minimum | 6-8 GiB preferred; months execute sequentially |
+| 5 GiB free disk minimum | Includes Python, Docker image, data, PostgreSQL, and logs |
+| Ports 5432 and 8501 | PostgreSQL and Streamlit |
 
-## Execution Phases
+Docker installation, daemon startup, Docker socket permissions, corporate proxy/private CA setup, firewall policy, and WSL2 integration are host-administrator decisions and cannot be safely automated by `setup.sh`. Use the official Docker instructions for the evaluator's distribution.
 
-| Phase | Description | Commit |
-|-------|-------------|--------|
-| 0 | Record architecture decisions | `docs(a1): record architecture decisions` |
-| 1 | Bootstrap reproducible toolchain | `chore(a1): bootstrap pinned toolchain` |
-| 2 | Data contract, fixtures, pure transform | `feat(a1): add typed trip transformation` |
-| 3 | KLL calibration | `feat(a1): add versioned KLL quality bounds` |
-| 4 | PostgreSQL schema + SQL contract | `feat(a1): add dimensional warehouse schema` |
-| 5 | Object storage, load, atomic publish | `feat(a1): publish monthly warehouse partitions` |
-| 6 | Thin Airflow DAGs + runtime images | `feat(a1): orchestrate monthly ETL with Airflow` |
-| 7 | Minimal Kubernetes vertical slice | `feat(a1): run ETL on local Kubernetes` |
-| 8 | Ingress, TLS, OIDC, alerts | `feat(a1): secure local platform access` |
-| 9 | Monitoring, logging, failure, recovery | `feat(a1): add platform observability and recovery` |
-| 10 | Executive dashboard | `feat(a1): add executive taxi dashboard` |
-| 11 | Complete setup + demo automation | `feat(a1): automate reproducible local demo` |
-| 12 | CI, release gates, supply chain | `ci(a1): enforce release and supply-chain gates` |
-| 13 | Guarded AWS Terraform | `feat(a1): add guarded AWS deployment` |
-| 14 | Final documentation + review | `docs(a1): finalize demo and operations guide` |
+## Expected Results
 
-## Machine Profiles
+Validated official TLC source results:
 
-Run `/bigpc` or `/smallpc` after fresh OpenCode session. Big PC (WSL2) expected concurrent only after Docker preflight confirms ≥8 GiB memory, ≥4 CPUs. Small PC expects staged or stage-by-stage. See [`docs/agents/machine-profiles.md`](../docs/agents/machine-profiles.md).
+| Month | Source | Accepted | Rejected | Flagged | SHA-256 |
+|---|---:|---:|---:|---:|---|
+| 2023-01 | 3,066,766 | 2,998,637 | 68,129 | 75,415 | `32df6f67578fa86c484a6b5ef23a5281992ff085521082340b0f9e5889e9a572` |
+| 2023-02 | 2,913,955 | 2,850,602 | 63,353 | 82,782 | `4809e6aaac64f05a62d16a25d55713be1537ad64fc261e895eaf2d2120fe750a` |
+| **Total** | **5,980,721** | **5,849,239** | **131,482** | **158,197** | |
+
+The loader replaces month partitions atomically. Immediate reruns preserve fact counts, source hashes, zero source duplicates, zone mappings, and quality totals.
+
+## Dashboard
+
+![Desktop dashboard](docs/images/dashboard-desktop.png)
+
+![Mobile dashboard](docs/images/dashboard-mobile.png)
+
+The single Streamlit application contains Overview, Demand, Revenue, Quality, and Trips tabs. It uses an aggregate mart for bounded queries and a read-only keyset-paginated trip explorer.
+
+## Requirement Evidence
+
+| Assessment requirement | Implementation | Proof |
+|---|---|---|
+| Bash setup, virtual environment, dependencies, Docker PostgreSQL, two `curl` downloads | `setup.sh --local-demo`, `scripts/local-demo.sh`, `scripts/download-sources.sh` | Clean E2E command above |
+| `schema.sql`, central fact, at least three dimensions | `sql/schema.sql`: fact plus date, time, zone, payment, vendor, and rate dimensions | Integration FK/partition tests |
+| Modern open-source orchestration | Apache Airflow DAG `taxi_monthly_etl` | Local Airflow `dags test` runs for both months |
+| Python extract, clean, transform, load | `src/nyc_taxi_etl/` with Polars and psycopg COPY | Real row reconciliation and database assertions |
+| Structured start/end logging, row counts, explicit errors | JSON `pipeline_started`, `pipeline_completed`, `pipeline_failed` events | `.local/logs/airflow-YYYY-MM.log` |
+| Orchestrator logs failures | Airflow task state/logging plus `notify_failure`; controlled failure DAG | Failure command in demo runbook |
+| Average fare per mile | `sql/queries/average_fare_per_mile.sql` | Executed in demo runbook and integration tests |
+| Peak ride hours | `sql/queries/peak_ride_hours.sql` | Executed in demo runbook and integration tests |
+| Revenue by payment type | `sql/queries/revenue_by_payment_type.sql` | Executed in demo runbook and integration tests |
+| Single-page Streamlit dashboard | `dashboard/app.py` | Live AppTest, desktop/mobile screenshots |
+
+Full retained proof: [`docs/evidence/release-v0.1.0.md`](docs/evidence/release-v0.1.0.md).
+
+## Validate
+
+```bash
+VERIFY_IMAGES=false ./scripts/verify.sh
+```
+
+This runs dependency-lock validation, Ruff, formatting, mypy, Alembic on disposable PostgreSQL, 95 tests, branch coverage (minimum 85%), lifecycle shell tests, SQLFluff, and Compose validation.
+
+For a clean non-interactive evaluator run without leaving Streamlit in the foreground:
+
+```bash
+bash ./setup.sh --local-demo --no-dashboard
+```
+
+## Architecture
+
+```text
+TLC Parquet (2023-01, 2023-02)
+              |
+              v
+Apache Airflow DAG -> Python/Polars validation -> rejected Parquet quarantine
+              |                    |
+              |                    v
+              +----------> PostgreSQL star schema
+                                      |
+                                      v
+                              analytics mart
+                                      |
+                                      v
+                            Streamlit dashboard
+```
+
+Detailed model: [`docs/data-model.md`](docs/data-model.md). Architecture: [`docs/architecture.md`](docs/architecture.md).
+
+## Assumptions
+
+- Source months: January-February 2023, downloaded from official TLC CloudFront URLs.
+- Average fare per mile is `SUM(fare_amount) / SUM(trip_distance)`.
+- Revenue is summed `total_amount` for hard-valid, non-refund rows.
+- Financial/unit metrics exclude statistical outliers; demand counts retain hard-valid rows.
+- Peak hour uses pickup count by America/New_York wall-clock hour.
+- Local Airflow uses `SequentialExecutor` to fit evaluator hardware. KubernetesExecutor is an optional extended platform, not required for the one-command assessment demo.
+- Synthetic fixture data is test-only unless official source download fails and fallback is explicitly requested.
+
+## Optional Extended Platform
+
+`infra/local/`, `infra/aws/`, OIDC, MinIO, Kubernetes, Prometheus/Grafana/Loki, backup/restore, and AWS Terraform demonstrate production design. They are not prerequisites for the reliable fresh-machine assessment path.

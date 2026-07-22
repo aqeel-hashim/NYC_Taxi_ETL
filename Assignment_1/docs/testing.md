@@ -1,49 +1,44 @@
 # Testing
 
-## Command Order
+## Complete Gate
 
 ```bash
-uv run ruff check .                    # Lint
-uv run ruff format --check .           # Format check
-uv run mypy src tests                  # Type check
-uv run pytest tests/unit               # Unit tests
-uv run pytest tests/integration        # Integration tests (requires PostgreSQL)
-uv run pytest --cov --cov-branch --cov-fail-under=85  # Coverage gate
+VERIFY_IMAGES=false ./scripts/verify.sh
 ```
 
-## Test Suites
+The script creates a disposable PostgreSQL container when `TEST_DATABASE_URL` is absent, migrates it, and runs:
 
-| Suite | Directory | Status |
-|-------|-----------|--------|
-| Unit | `tests/unit/` | PASS |
-| Integration | `tests/integration/` | PASS (needs PostgreSQL) |
-| Dashboard | `tests/dashboard/` | PASS |
-| DAG | `tests/dags/` | NOT_STARTED |
-| E2E | `tests/e2e/` | NOT_STARTED |
+- frozen lock validation and dependency sync;
+- Ruff lint and formatting;
+- strict mypy across source, Airflow, dashboard, webhook, and tests;
+- 95 unit, integration, DAG, dashboard, security, and manifest tests;
+- minimum 85% branch coverage;
+- shell lifecycle tests;
+- SQLFluff for required SQL;
+- Compose and Docker-context validation.
 
-## Run Specific Tests
+`VERIFY_IMAGES=true` additionally builds three runtime images. It is disabled on hosts where Docker/network behavior prevents deterministic image builds; CI performs image builds independently.
+
+## Suites
+
+| Suite | Directory | Coverage |
+|---|---|---|
+| Unit | `tests/unit/` | contracts, transforms, KLL, CLI/error categories |
+| Integration | `tests/integration/` | migrations, roles, partitions, idempotent ETL, dimension keys, required SQL |
+| Dashboard | `tests/dashboard/` | real tab rendering, state, SQL builders, geometry, migration, performance |
+| DAG | `tests/dags/` | Airflow DAG import and task graph |
+| Security/operations | `tests/phase8/`, `tests/phase9/` | alerts, manifests, observability |
+| Shell | `tests/shell/` | lifecycle CLI contracts |
+
+## Live E2E
 
 ```bash
-uv run pytest tests/unit/test_version.py -v
-uv run pytest tests/unit/transform/ -v
-uv run pytest tests/unit/test_kll.py -v
-uv run pytest tests/unit/test_contract.py -v
-uv run pytest tests/unit/storage/ -v
-uv run pytest tests/unit/load/ -v
+bash ./setup.sh --local-demo --no-dashboard
 ```
 
-## Fixtures
+This is the examiner-style E2E: official downloads, Docker PostgreSQL, local Airflow execution for both months, and final warehouse assertions. Run Streamlit afterward with:
 
-Minimal fixture data lives in `tests/fixtures/`. Transform tests use inline test data via `_valid_row()` helper.
-
-## Coverage Gate
-
-- Minimum: 85% branch coverage
-- Source paths: `src/` only
-- Excluded: `TYPE_CHECKING` blocks, `NotImplementedError`, `pragma: no cover`
-
-## Release Gates
-
-- CI: ruff, mypy, pytest + coverage, SQLFluff (PASS)
-- Release: kind smoke, Playwright, backup/restore, failure drill (NOT_STARTED, blocked on K8s)
-- Manual: Playwright dashboard smoke (NOT_STARTED)
+```bash
+set -a; source .env; set +a
+.venv/bin/streamlit run dashboard/app.py --server.port 8501
+```

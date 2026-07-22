@@ -54,6 +54,15 @@ def test_fixture_pipeline_loads_and_reruns(database_url: str) -> None:
     with psycopg.connect(database_url.replace("postgresql+psycopg://", "postgresql://")) as conn:
         assert conn.execute("SELECT count(*) FROM warehouse.fact_taxi_trips").fetchone() == (4,)
         assert conn.execute(
+            "SELECT count(*) FROM warehouse.fact_taxi_trips WHERE pickup_zone_key = 0 OR dropoff_zone_key = 0"
+        ).fetchone() == (0,)
+        assert conn.execute(
+            "SELECT count(*) FROM ops.trip_quality_issue WHERE source_month = '2023-01'"
+        ).fetchone() == (2,)
+        assert conn.execute(
+            "SELECT sum(row_count) FROM ops.quality_result_summary WHERE source_month = '2023-01'"
+        ).fetchone() == (2,)
+        assert conn.execute(
             """
             SELECT count(*) - count(DISTINCT (pickup_date_key, source_asset_id, source_version, source_row_number))
             FROM warehouse.fact_taxi_trips

@@ -62,14 +62,14 @@ def taxi_quality_calibration() -> None:
                 version.bounds[metric] = compute_bounds(sketch, metric)
 
         version.is_active = True
-        path = save_threshold_version(version, KLL_DIR)
-        return str(path)
+        calibration_path = save_threshold_version(version, KLL_DIR)
+        return str(calibration_path)
 
     @task(task_id="complete")
     def complete(path: str) -> None:
         print(f"calibration_complete path={path}")
 
-    complete(calibrate())
+    complete(calibrate())  # type: ignore[arg-type]
 
 
 taxi_quality_calibration()

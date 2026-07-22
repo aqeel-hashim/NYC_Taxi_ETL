@@ -27,14 +27,26 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-yaml
+        args: [--allow-multiple-documents]
         exclude: ^\.agents/
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
-        exclude: ^\.agents/
+        exclude: ^\.agents/|^Assignment_1/infra/aws/(bootstrap/)?\.terraform\.lock\.hcl$
       - id: trailing-whitespace
-        exclude: ^\.agents/
+        exclude: ^\.agents/|^Assignment_1/infra/aws/(bootstrap/)?\.terraform\.lock\.hcl$
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=500]
         exclude: ^Assignment_1/uv\.lock$
+  - repo: local
+    hooks:
+      - id: assignment-1-gate
+        name: Assignment 1 non-kind and release gate
+        entry: >-
+          bash -c 'cd Assignment_1 && VERIFY_IMAGES=false ./scripts/verify.sh &&
+          { branch="$(git branch --show-current)";
+          [[ "${branch}" != release/* ]] || ./scripts/release-check.sh; }'
+        language: system
+        pass_filenames: false
+        always_run: true

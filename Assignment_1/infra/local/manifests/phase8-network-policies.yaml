@@ -1,0 +1,298 @@
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: taxi-platform-dns
+spec:
+  order: 100
+  namespaceSelector: projectcalico.org/name in {"ingress", "identity", "monitoring", "data-platform", "taxi-app"}
+  selector: all()
+  types: ["Egress"]
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        namespaceSelector: projectcalico.org/name == "kube-system"
+        selector: k8s-app == "kube-dns"
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "kube-system"
+        selector: k8s-app == "kube-dns"
+        ports: [53]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: ingress
+spec:
+  order: 1000
+  selector: all()
+  types: ["Ingress", "Egress"]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: identity
+spec:
+  order: 1000
+  selector: all()
+  types: ["Ingress", "Egress"]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: monitoring
+spec:
+  order: 1000
+  selector: all()
+  types: ["Ingress", "Egress"]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: data-platform
+spec:
+  order: 1000
+  selector: all()
+  types: ["Ingress", "Egress"]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: taxi-app
+spec:
+  order: 1000
+  selector: all()
+  types: ["Ingress", "Egress"]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: traefik-flows
+  namespace: ingress
+spec:
+  order: 200
+  selector: app.kubernetes.io/name == "traefik"
+  types: ["Ingress", "Egress"]
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets: ["0.0.0.0/0"]
+      destination:
+        ports: [8000, 8443]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        services:
+          name: kubernetes
+          namespace: default
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "identity"
+        ports: [80, 5556]
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "data-platform"
+        ports: [8080, 9001]
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "taxi-app"
+        ports: [8000, 8025]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: identity-flows
+  namespace: identity
+spec:
+  order: 200
+  selector: all()
+  types: ["Ingress", "Egress"]
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "ingress"
+      destination:
+        ports: [80, 5556]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "ingress"
+        ports: [8443]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: data-platform-internal
+  namespace: data-platform
+spec:
+  order: 200
+  selector: all()
+  types: ["Ingress", "Egress"]
+  ingress:
+    - action: Allow
+      source:
+        selector: all()
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "ingress"
+      destination:
+        ports: [8080, 9001]
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "monitoring"
+      destination:
+        ports: [8080, 9000, 9187, 9125, 9102]
+  egress:
+    - action: Allow
+      destination:
+        selector: all()
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "ingress"
+        ports: [8443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "taxi-app"
+        ports: [1025, 8000]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow-kubernetes-api
+  namespace: data-platform
+spec:
+  order: 190
+  selector: component in {"scheduler", "worker"}
+  types: ["Egress"]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        services:
+          name: kubernetes
+          namespace: default
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow-source-download
+  namespace: data-platform
+spec:
+  order: 190
+  selector: component == "worker"
+  types: ["Egress"]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets: ["0.0.0.0/0"]
+        ports: [443]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: airflow-external-smtp
+  namespace: data-platform
+spec:
+  order: 190
+  selector: component == "scheduler"
+  types: ["Egress"]
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets: ["0.0.0.0/0"]
+        ports: [465, 587, 2525]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: taxi-app-flows
+  namespace: taxi-app
+spec:
+  order: 200
+  selector: all()
+  types: ["Ingress", "Egress"]
+  ingress:
+    - action: Allow
+      source:
+        selector: all()
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "ingress"
+      destination:
+        ports: [8000, 8025]
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "data-platform"
+      destination:
+        ports: [1025, 8000]
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: projectcalico.org/name == "monitoring"
+      destination:
+        ports: [8000]
+  egress:
+    - action: Allow
+      destination:
+        selector: all()
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "ingress"
+        ports: [8443]
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-flows
+  namespace: monitoring
+spec:
+  order: 200
+  selector: all()
+  types: ["Ingress", "Egress"]
+  ingress:
+    - action: Allow
+      source:
+        selector: all()
+  egress:
+    - action: Allow
+      destination:
+        selector: all()
+    - action: Allow
+      protocol: TCP
+      destination:
+        services:
+          name: kubernetes
+          namespace: default
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "data-platform"
+        ports: [8080, 9000, 9187, 9125, 9102]
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: projectcalico.org/name == "taxi-app"
+        ports: [8000]

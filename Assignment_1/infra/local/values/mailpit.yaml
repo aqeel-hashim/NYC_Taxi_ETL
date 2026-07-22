@@ -4,10 +4,4 @@ service:
   web:
     port: 8025
 ingress:
-  enabled: true
-  className: traefik
-  hosts:
-    - host: mailpit.taxi.localhost
-      paths:
-        - path: /
-          pathType: Prefix
+  enabled: false
