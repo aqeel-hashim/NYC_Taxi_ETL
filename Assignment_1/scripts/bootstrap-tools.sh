@@ -42,7 +42,9 @@ download() {
   local url="$1" destination="$2"
   [[ -s "${destination}" ]] && return 0
   [[ "${OFFLINE}" == false ]] || { log_error "Offline tool cache miss: ${destination}"; return 1; }
-  curl --fail --location --retry 3 --retry-all-errors "${url}" --output "${destination}.part"
+  curl --fail --location --retry 5 --retry-all-errors \
+    --connect-timeout 15 --speed-limit 1024 --speed-time 30 --continue-at - \
+    "${url}" --output "${destination}.part"
   mv "${destination}.part" "${destination}"
 }
 
@@ -65,7 +67,11 @@ verified_download() {
   fi
   [[ "${expected}" =~ ^[0-9a-fA-F]{64}$ ]] || { log_error "No published checksum for ${filename}"; return 1; }
   actual="$(sha256sum "${asset}" | awk '{print $1}')"
-  [[ "${actual,,}" == "${expected,,}" ]] || { log_error "Checksum mismatch: ${filename}"; return 1; }
+  if [[ "${actual,,}" != "${expected,,}" ]]; then
+    rm -f "${asset}"
+    log_error "Checksum mismatch: ${filename}"
+    return 1
+  fi
   printf '%s\n' "${asset}"
 }
 

@@ -27,7 +27,9 @@ for month in 2023-01 2023-02; do
   url="https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_${month}.parquet"
   source_valid "${path}" "${month}" && continue
   rm -f "${path}.part"
-  curl --fail --location --retry 5 --retry-all-errors "${url}" --output "${path}.part"
+  curl --fail --location --retry 5 --retry-all-errors \
+    --connect-timeout 15 --speed-limit 1024 --speed-time 30 --continue-at - \
+    "${url}" --output "${path}.part"
   source_valid "${path}.part" "${month}" || { printf 'Invalid Parquet download: %s\n' "${url}" >&2; exit 1; }
   mv "${path}.part" "${path}"
 done
