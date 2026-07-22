@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "schedule:weekly"],
+  "dependencyDashboard": true,
+  "labels": ["dependencies", "ready-for-human"],
+  "rangeStrategy": "pin",
+  "enabledManagers": [
+    "dockerfile",
+    "github-actions",
+    "helm-values",
+    "pep621",
+    "pre-commit",
+    "terraform",
+    "terraform-version"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group compatible Assignment 1 dependency updates",
+      "matchFileNames": ["Assignment_1/**", ".github/workflows/assignment-1-*.yml"],
+      "matchUpdateTypes": ["digest", "pin", "patch", "minor", "lockFileMaintenance"],
+      "groupName": "assignment-1 compatible dependencies"
+    },
+    {
+      "description": "Require separate review for major updates",
+      "matchFileNames": ["Assignment_1/**", ".github/workflows/assignment-1-*.yml"],
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    }
+  ]
+}

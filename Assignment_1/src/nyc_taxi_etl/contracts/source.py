@@ -68,30 +68,30 @@ def validate_contract(df: pl.DataFrame) -> SourceContract:
         contract.status = ContractStatus.MISSING_COLUMNS
         return contract
 
-    expected_types: dict[str, str] = {
-        "VendorID": "Int",
-        "passenger_count": "Int",
-        "trip_distance": "Float",
-        "RatecodeID": "Int",
-        "PULocationID": "Int",
-        "DOLocationID": "Int",
-        "payment_type": "Int",
-        "fare_amount": "Float",
-        "extra": "Float",
-        "mta_tax": "Float",
-        "tip_amount": "Float",
-        "tolls_amount": "Float",
-        "improvement_surcharge": "Float",
-        "total_amount": "Float",
-        "congestion_surcharge": "Float",
-        "airport_fee": "Float",
+    expected_types: dict[str, tuple[str, ...]] = {
+        "VendorID": ("Int",),
+        "passenger_count": ("Int", "Float"),
+        "trip_distance": ("Float",),
+        "RatecodeID": ("Int", "Float"),
+        "PULocationID": ("Int",),
+        "DOLocationID": ("Int",),
+        "payment_type": ("Int",),
+        "fare_amount": ("Float",),
+        "extra": ("Float",),
+        "mta_tax": ("Float",),
+        "tip_amount": ("Float",),
+        "tolls_amount": ("Float",),
+        "improvement_surcharge": ("Float",),
+        "total_amount": ("Float",),
+        "congestion_surcharge": ("Float",),
+        "airport_fee": ("Float",),
     }
 
     incompatible: dict[str, tuple[str, str]] = {}
     for col, exp in expected_types.items():
         actual = str(df.schema.get(col, ""))
-        if actual and exp not in actual and actual != "Null":
-            incompatible[col] = (exp, actual)
+        if actual and not any(expected in actual for expected in exp) and actual != "Null":
+            incompatible[col] = ("|".join(exp), actual)
 
     if incompatible:
         contract.incompatible_types = incompatible

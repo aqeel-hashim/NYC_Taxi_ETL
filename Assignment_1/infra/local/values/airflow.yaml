@@ -1,0 +1,52 @@
+config:
+  core:
+    load_examples: "false"
+  kubernetes_executor:
+    kubernetes_executor: "True"
+data:
+  metadataSecretName: airflow-metadata
+executor: "KubernetesExecutor"
+images:
+  airflow:
+    repository: taxi-airflow
+    tag: latest
+    pullPolicy: IfNotPresent
+defaultAirflowRepository: taxi-airflow
+defaultAirflowTag: latest
+extraEnvFrom: |-
+  - secretRef:
+      name: airflow-platform-secrets
+extraEnv: |-
+  - name: PUSHGATEWAY_URL
+    value: http://pushgateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091
+volumes:
+  - name: taxi-ca
+    secret:
+      secretName: taxi-ca
+volumeMounts:
+  - name: taxi-ca
+    mountPath: /etc/taxi-ca
+    readOnly: true
+webserverSecretKeySecretName: airflow-webserver-key
+webserver:
+  webserverConfigConfigMapName: airflow-webserver-config
+  defaultUser:
+    enabled: false
+pgbouncer:
+  enabled: false
+postgresql:
+  enabled: false
+workers:
+  replicas: 1
+scheduler:
+  replicas: 1
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 1Gi
+    cpu: 1
+
+migrateDatabaseJob:
+  enabled: true

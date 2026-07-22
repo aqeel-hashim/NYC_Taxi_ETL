@@ -1,0 +1,44 @@
+configSecret:
+  create: false
+  name: dex-config
+envFrom:
+  - secretRef:
+      name: dex-client-secrets
+volumes:
+  - name: dex-storage
+    emptyDir: {}
+volumeMounts:
+  - name: dex-storage
+    mountPath: /var/dex
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  hosts:
+    - host: dex.taxi.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - dex.taxi.localhost
+      secretName: taxi-tls-cert
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi

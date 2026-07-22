@@ -1,0 +1,237 @@
+name: Assignment 1 Terraform
+
+on:
+  pull_request:
+    paths:
+      - "Assignment_1/infra/aws/**"
+      - "Assignment_1/scripts/configure-cloud.sh"
+      - ".github/workflows/assignment-1-terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Operation
+        required: true
+        type: choice
+        options: [plan, apply, destroy]
+      environment:
+        description: AWS environment
+        required: true
+        type: choice
+        options: [dev, prod]
+      confirmation:
+        description: Enter PLAN, APPLY, or DESTROY to match the operation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: Assignment_1/infra/aws
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TERRAFORM_VERSION: "1.10.5"
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      - name: Format
+        run: terraform fmt -check -recursive
+      - name: Validate root
+        run: terraform init -backend=false && terraform validate
+      - name: Test root
+        run: terraform test
+      - name: Validate and test bootstrap
+        run: terraform -chdir=bootstrap init -backend=false && terraform -chdir=bootstrap validate && terraform -chdir=bootstrap test
+      - name: TFLint
+        run: docker run --rm -v "$PWD:/data" -w /data ghcr.io/terraform-linters/tflint:v0.58.1 --recursive
+      - name: Checkov
+        run: docker run --rm -v "$PWD:/tf" bridgecrew/checkov:3.2.451 -d /tf --framework terraform --compact
+      - name: Trivy configuration scan
+        run: docker run --rm -v "$PWD:/tf" aquasec/trivy:0.64.1 config --exit-code 1 --severity HIGH,CRITICAL /tf
+
+  plan:
+    if: github.event_name == 'workflow_dispatch' && ((inputs.action == 'plan' && inputs.confirmation == 'PLAN') || (inputs.action == 'apply' && inputs.confirmation == 'APPLY'))
+    needs: static
+    runs-on: ubuntu-24.04
+    environment: assignment-1-${{ inputs.environment }}-plan
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUD_ENVIRONMENT: ${{ inputs.environment }}
+      CLOUD_AWS_ACCOUNT_ID: ${{ vars.A1_AWS_ACCOUNT_ID }}
+      CLOUD_OWNER: ${{ vars.A1_OWNER }}
+      CLOUD_COST_CENTER: ${{ vars.A1_COST_CENTER }}
+      CLOUD_EXPIRES_AT: ${{ vars.A1_EXPIRES_AT }}
+      CLOUD_BUDGET_USD: ${{ vars.A1_BUDGET_USD }}
+      CLOUD_BUDGET_ALERT_EMAILS: ${{ vars.A1_ALERT_EMAILS }}
+      CLOUD_GITHUB_REPOSITORY: ${{ github.repository }}
+      CLOUD_DEPLOYMENT_ROLE_ARN: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+      CLOUD_CLOUDFLARE_ACCOUNT_ID: ${{ vars.A1_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUD_CLOUDFLARE_ZONE_ID: ${{ vars.A1_CLOUDFLARE_ZONE_ID }}
+      CLOUD_CLOUDFLARE_API_TOKEN: ${{ secrets.A1_CLOUDFLARE_API_TOKEN }}
+      CLOUD_APP_DOMAIN: ${{ vars.A1_APP_DOMAIN }}
+      CLOUD_PRIMARY_ORIGIN: ${{ vars.A1_PRIMARY_ORIGIN }}
+      CLOUD_DR_ORIGIN: ${{ vars.A1_DR_ORIGIN }}
+      CLOUD_ENTERPRISE_OIDC_ISSUER: ${{ vars.A1_ENTERPRISE_OIDC_ISSUER }}
+      CLOUD_ENTERPRISE_OIDC_CLIENT_ID: ${{ vars.A1_ENTERPRISE_OIDC_CLIENT_ID }}
+      CLOUD_ENTERPRISE_OIDC_CLIENT_SECRET: ${{ secrets.A1_ENTERPRISE_OIDC_CLIENT_SECRET }}
+      CLOUD_SMTP_FROM_ADDRESS: ${{ vars.A1_SMTP_FROM_ADDRESS }}
+      CLOUD_BACKEND_BUCKET: ${{ vars.A1_BACKEND_BUCKET }}
+      CLOUD_BACKEND_KMS_KEY_ARN: ${{ vars.A1_BACKEND_KMS_KEY_ARN }}
+      CLOUD_BUCKET_PREFIX: ${{ vars.A1_BUCKET_PREFIX }}
+      CLOUD_COST_APPROVED: "true"
+      CLOUD_PROTECTED_ENVIRONMENTS_CONFIRMED: "true"
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-assume: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Validate cloud inputs
+        working-directory: Assignment_1
+        run: ./scripts/configure-cloud.sh --non-interactive --environment "${{ inputs.environment }}"
+      - name: Initialize
+        run: terraform init -backend-config=backend.hcl
+      - name: Create reviewed plan
+        run: terraform plan -var-file="environments/${{ inputs.environment }}/terraform.tfvars" -out=tfplan && terraform show -json tfplan > plan.json
+      - name: Cost guard
+        env:
+          BASELINE_MONTHLY_USD: ${{ vars.A1_INFRACOST_BASELINE_MONTHLY_USD }}
+        run: |
+          docker run --rm -e INFRACOST_API_KEY -v "$PWD:/src" -w /src infracost/infracost:0.10.41 breakdown --path plan.json --format json --out-file infracost.json
+          monthly="$(jq -r '.totalMonthlyCost // "0" | tonumber' infracost.json)"
+          jq -en --argjson monthly "$monthly" --argjson baseline "${BASELINE_MONTHLY_USD:-0}" --arg environment "${{ inputs.environment }}" '
+            ($environment != "dev" or $monthly <= 300) and
+            ($baseline <= 0 or $monthly <= ($baseline * 1.10))
+          ' >/dev/null || { echo "Cost guard failed: monthly=$monthly baseline=${BASELINE_MONTHLY_USD:-0}"; exit 1; }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: assignment-1-${{ inputs.environment }}-reviewed-plan-${{ github.run_id }}
+          path: |
+            Assignment_1/infra/aws/tfplan
+            Assignment_1/infra/aws/.terraform.lock.hcl
+            Assignment_1/infra/aws/infracost.json
+          retention-days: 3
+          if-no-files-found: error
+
+  apply:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && inputs.confirmation == 'APPLY'
+    needs: plan
+    runs-on: ubuntu-24.04
+    environment: assignment-1-${{ inputs.environment }}-apply
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-assume: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: assignment-1-${{ inputs.environment }}-reviewed-plan-${{ github.run_id }}
+          path: Assignment_1/infra/aws
+      - name: Apply exact reviewed plan
+        run: terraform init -backend-config="bucket=${{ vars.A1_BACKEND_BUCKET }}" -backend-config="key=assignment-1/${{ inputs.environment }}/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="kms_key_id=${{ vars.A1_BACKEND_KMS_KEY_ARN }}" && terraform apply tfplan
+
+  destroy-plan:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy' && inputs.confirmation == 'DESTROY'
+    needs: static
+    runs-on: ubuntu-24.04
+    environment: assignment-1-${{ inputs.environment }}-destroy
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUD_ENVIRONMENT: ${{ inputs.environment }}
+      CLOUD_AWS_ACCOUNT_ID: ${{ vars.A1_AWS_ACCOUNT_ID }}
+      CLOUD_OWNER: ${{ vars.A1_OWNER }}
+      CLOUD_COST_CENTER: ${{ vars.A1_COST_CENTER }}
+      CLOUD_EXPIRES_AT: ${{ vars.A1_EXPIRES_AT }}
+      CLOUD_BUDGET_USD: ${{ vars.A1_BUDGET_USD }}
+      CLOUD_BUDGET_ALERT_EMAILS: ${{ vars.A1_ALERT_EMAILS }}
+      CLOUD_GITHUB_REPOSITORY: ${{ github.repository }}
+      CLOUD_DEPLOYMENT_ROLE_ARN: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+      CLOUD_CLOUDFLARE_ACCOUNT_ID: ${{ vars.A1_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUD_CLOUDFLARE_ZONE_ID: ${{ vars.A1_CLOUDFLARE_ZONE_ID }}
+      CLOUD_CLOUDFLARE_API_TOKEN: ${{ secrets.A1_CLOUDFLARE_API_TOKEN }}
+      CLOUD_APP_DOMAIN: ${{ vars.A1_APP_DOMAIN }}
+      CLOUD_PRIMARY_ORIGIN: ${{ vars.A1_PRIMARY_ORIGIN }}
+      CLOUD_DR_ORIGIN: ${{ vars.A1_DR_ORIGIN }}
+      CLOUD_ENTERPRISE_OIDC_ISSUER: ${{ vars.A1_ENTERPRISE_OIDC_ISSUER }}
+      CLOUD_ENTERPRISE_OIDC_CLIENT_ID: ${{ vars.A1_ENTERPRISE_OIDC_CLIENT_ID }}
+      CLOUD_ENTERPRISE_OIDC_CLIENT_SECRET: ${{ secrets.A1_ENTERPRISE_OIDC_CLIENT_SECRET }}
+      CLOUD_SMTP_FROM_ADDRESS: ${{ vars.A1_SMTP_FROM_ADDRESS }}
+      CLOUD_BACKEND_BUCKET: ${{ vars.A1_BACKEND_BUCKET }}
+      CLOUD_BACKEND_KMS_KEY_ARN: ${{ vars.A1_BACKEND_KMS_KEY_ARN }}
+      CLOUD_BUCKET_PREFIX: ${{ vars.A1_BUCKET_PREFIX }}
+      CLOUD_COST_APPROVED: "true"
+      CLOUD_PROTECTED_ENVIRONMENTS_CONFIRMED: "true"
+    steps:
+      - run: echo "Destroy is intentionally separate; configure the same CLOUD_* values as plan in this protected environment."
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-assume: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Validate cloud inputs
+        working-directory: Assignment_1
+        run: ./scripts/configure-cloud.sh --non-interactive --environment "${{ inputs.environment }}"
+      - name: Destroy plan
+        run: terraform init -backend-config=backend.hcl && terraform plan -destroy -var-file="environments/${{ inputs.environment }}/terraform.tfvars" -out=destroy.tfplan
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: assignment-1-${{ inputs.environment }}-destroy-plan-${{ github.run_id }}
+          path: |
+            Assignment_1/infra/aws/destroy.tfplan
+            Assignment_1/infra/aws/.terraform.lock.hcl
+          retention-days: 1
+          if-no-files-found: error
+
+  destroy:
+    needs: destroy-plan
+    runs-on: ubuntu-24.04
+    environment: assignment-1-${{ inputs.environment }}-destroy-apply
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-assume: ${{ vars.A1_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: assignment-1-${{ inputs.environment }}-destroy-plan-${{ github.run_id }}
+          path: Assignment_1/infra/aws
+      - name: Apply exact reviewed destroy plan
+        run: terraform init -backend-config="bucket=${{ vars.A1_BACKEND_BUCKET }}" -backend-config="key=assignment-1/${{ inputs.environment }}/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="kms_key_id=${{ vars.A1_BACKEND_KMS_KEY_ARN }}" && terraform apply destroy.tfplan

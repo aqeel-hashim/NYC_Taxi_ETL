@@ -1,0 +1,6 @@
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+resources:
+  requests: {cpu: 25m, memory: 32Mi}
+  limits: {cpu: 100m, memory: 128Mi}

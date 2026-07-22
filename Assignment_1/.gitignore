@@ -6,9 +6,6 @@ dist/
 build/
 .venv/
 
-# uv
-uv.lock
-
 # Environment
 .env
 .env.*
@@ -16,7 +13,6 @@ uv.lock
 
 # Tools
 .tools/
-.python-version
 
 # IDE
 .idea/
@@ -29,6 +25,13 @@ htmlcov/
 .coverage
 .coverage.*
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime and release output
+.local/
+artifacts/
+dist/
 
 # Docker
 *.tar
@@ -36,6 +39,7 @@ htmlcov/
 
 # MinIO host data
 minio-data/
+/data/
 
 # Kind
 kubeconfig

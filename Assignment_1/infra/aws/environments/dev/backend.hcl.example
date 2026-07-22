@@ -1,0 +1,6 @@
+bucket       = "REPLACE-state-primary-bucket"
+key          = "assignment-1/dev/terraform.tfstate"
+region       = "us-east-1"
+use_lockfile = true
+encrypt      = true
+kms_key_id   = "REPLACE-primary-state-kms-arn"

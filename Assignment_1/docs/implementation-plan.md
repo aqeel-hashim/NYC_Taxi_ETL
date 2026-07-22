@@ -1,6 +1,6 @@
 # Assignment 1 Implementation Plan
 
-Status: design agreed; implementation not started.
+Status: Phases 0-4 pass. Phases 5-14 active.
 
 This plan is executable guidance, not evidence that commands or files already exist. Implement phases in order. Do not claim a command works until its phase creates and verifies it. Stop on failed gates; fix the failing layer before continuing.
 

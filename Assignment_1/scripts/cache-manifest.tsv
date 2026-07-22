@@ -1,0 +1,16 @@
+# kind|profile|local name|immutable URL or reference
+source|core|data/yellow_tripdata_2023-01.parquet|https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet
+source|core|data/yellow_tripdata_2023-02.parquet|https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-02.parquet
+image|core|pgvector|pgvector/pgvector:pg17
+image|core|minio|minio/minio:RELEASE.2025-07-24T00-47-19Z
+image|core|airflow-base|apache/airflow:2.10.5-python3.12
+image|core|python-base|python:3.12-slim
+chart|core|cloudnative-pg-0.23.2.tgz|cnpg/cloudnative-pg@0.23.2
+chart|core|minio-5.4.0.tgz|minio/minio@5.4.0
+chart|core|airflow-1.15.0.tgz|apache-airflow/airflow@1.15.0
+chart|core|traefik-34.1.0.tgz|traefik/traefik@34.1.0
+chart|core|kube-prometheus-stack-68.2.0.tgz|prometheus-community/kube-prometheus-stack@68.2.0
+chart|core|loki-6.24.0.tgz|grafana/loki@6.24.0
+chart|core|dex-0.19.1.tgz|dex/dex@0.19.1
+chart|core|oauth2-proxy-7.12.0.tgz|oauth2-proxy/oauth2-proxy@7.12.0
+chart|core|mailpit-0.1.0.tgz|mailpit/mailpit@0.1.0

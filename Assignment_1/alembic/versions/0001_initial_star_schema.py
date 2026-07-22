@@ -131,6 +131,38 @@ def upgrade() -> None:
             PRIMARY KEY (pickup_date_key, trip_key)
         ) PARTITION BY RANGE (pickup_date_key)
     """)
+    op.execute("""
+        CREATE TABLE warehouse.fact_taxi_trips_2023_01
+        PARTITION OF warehouse.fact_taxi_trips
+        FOR VALUES FROM (20230101) TO (20230201)
+    """)
+    op.execute("""
+        CREATE TABLE warehouse.fact_taxi_trips_2023_02
+        PARTITION OF warehouse.fact_taxi_trips
+        FOR VALUES FROM (20230201) TO (20230301)
+    """)
+    op.execute("""
+        ALTER TABLE warehouse.fact_taxi_trips
+        ADD CONSTRAINT uq_fact_taxi_trips_source_row
+        UNIQUE (pickup_date_key, source_asset_id, source_version, source_row_number)
+    """)
+    for column, table in (
+        ("pickup_date_key", "dim_date"),
+        ("dropoff_date_key", "dim_date"),
+        ("pickup_time_key", "dim_time"),
+        ("dropoff_time_key", "dim_time"),
+        ("pickup_zone_key", "dim_taxi_zone"),
+        ("dropoff_zone_key", "dim_taxi_zone"),
+        ("payment_type_key", "dim_payment_type"),
+        ("vendor_key", "dim_vendor"),
+        ("rate_code_key", "dim_rate_code"),
+    ):
+        target_column = "date_key" if table == "dim_date" else "time_key" if table == "dim_time" else "surrogate_key"
+        op.execute(f"""
+            ALTER TABLE warehouse.fact_taxi_trips
+            ADD CONSTRAINT fk_fact_taxi_trips_{column}
+            FOREIGN KEY ({column}) REFERENCES warehouse.{table} ({target_column})
+        """)
 
     # analytics.trip_metrics_hourly (partitioned)
     op.execute("""
@@ -160,6 +192,16 @@ def upgrade() -> None:
             PRIMARY KEY (pickup_date_key, pickup_hour, pickup_zone_key, payment_type_key,
                          vendor_key, rate_code_key, has_statistical_outlier, has_quality_issue)
         ) PARTITION BY RANGE (pickup_date_key)
+    """)
+    op.execute("""
+        CREATE TABLE analytics.trip_metrics_hourly_2023_01
+        PARTITION OF analytics.trip_metrics_hourly
+        FOR VALUES FROM (20230101) TO (20230201)
+    """)
+    op.execute("""
+        CREATE TABLE analytics.trip_metrics_hourly_2023_02
+        PARTITION OF analytics.trip_metrics_hourly
+        FOR VALUES FROM (20230201) TO (20230301)
     """)
 
     # ops tables
@@ -229,6 +271,28 @@ def upgrade() -> None:
             INSERT INTO warehouse.dim_time (time_key, hour, minute, quarter_hour, hour_label, daypart)
             VALUES ({minute_key}, {hour}, {minute}, {quarter}, '{label}', '{daypart}')
         """)
+
+    op.execute("""
+        INSERT INTO warehouse.dim_date (
+            date_key, calendar_date, year, quarter, month, month_name, iso_week, iso_year,
+            day_of_month, day_of_year, weekday_number, weekday_name, is_weekend
+        )
+        SELECT
+            to_char(d, 'YYYYMMDD')::integer,
+            d,
+            extract(year from d)::smallint,
+            extract(quarter from d)::smallint,
+            extract(month from d)::smallint,
+            trim(to_char(d, 'Month')),
+            extract(week from d)::smallint,
+            extract(isoyear from d)::smallint,
+            extract(day from d)::smallint,
+            extract(doy from d)::smallint,
+            extract(isodow from d)::smallint,
+            trim(to_char(d, 'Day')),
+            extract(isodow from d) in (6, 7)
+        FROM generate_series('2023-01-01'::date, '2023-03-01'::date, interval '1 day') AS s(d)
+    """)
 
     # Seed Unknown rows for SCD2 dims (key 0)
     for table_name in ("dim_taxi_zone", "dim_payment_type", "dim_vendor", "dim_rate_code"):

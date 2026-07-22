@@ -1,0 +1,59 @@
+mode: standalone
+replicas: 1
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: standard
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m
+buckets:
+  - name: nyc-taxi-etl
+    policy: none
+    purge: false
+  - name: cnpg-backups
+    policy: none
+    purge: false
+  - name: loki
+    policy: none
+    purge: false
+  - name: airflow-logs
+    policy: none
+    purge: false
+existingSecret: minio-root-credentials
+trustedCertsSecret: taxi-ca
+oidc:
+  enabled: true
+  configUrl: https://dex.taxi.localhost:8443/.well-known/openid-configuration
+  existingClientSecretName: minio-oidc
+  existingClientIdKey: client-id
+  existingClientSecretKey: client-secret
+  claimName: preferred_username
+  scopes: openid,profile,email,groups
+  redirectUri: https://minio.taxi.localhost:8443/oauth_callback
+  displayName: NYC Taxi Login
+policies:
+  - name: admin
+    statements:
+      - resources: ["arn:aws:s3:::*"]
+        actions: ["s3:*"]
+      - resources: ["arn:aws:s3:::*/*"]
+        actions: ["s3:*"]
+      - resources: ["arn:aws:s3:::*"]
+        actions: ["admin:*"]
+  - name: viewer
+    statements:
+      - resources: ["arn:aws:s3:::*"]
+        actions: ["s3:GetBucketLocation", "s3:ListBucket"]
+      - resources: ["arn:aws:s3:::*/*"]
+        actions: ["s3:GetObject"]
+users: []
+consoleIngress:
+  enabled: false
+serviceAccount:
+  create: true
+  name: minio

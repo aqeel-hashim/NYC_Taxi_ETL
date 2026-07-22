@@ -1,0 +1,34 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: taxi-warehouse
+  namespace: data-platform
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.4
+  storage:
+    size: 2Gi
+  bootstrap:
+    initdb:
+      database: taxi_warehouse
+      owner: taxi_app
+      secret:
+        name: taxi-app-password
+      postInitApplicationSQLRefs:
+        secretRefs:
+          - name: database-bootstrap-sql
+            key: bootstrap.sql
+  monitoring:
+    enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: taxi-backups
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m

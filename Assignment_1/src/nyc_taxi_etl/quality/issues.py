@@ -2,8 +2,6 @@
 
 from enum import StrEnum
 
-# Issue Enum definitions
-
 
 class IssueCode(StrEnum):
     MISSING_PICKUP = "MISSING_PICKUP"
