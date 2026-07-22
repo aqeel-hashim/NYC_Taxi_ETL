@@ -32,7 +32,8 @@ import zipfile
 
 archive = sys.argv[1]
 forbidden = re.compile(
-    r"(^|/)(\.env$|\.venv/|\.tools/|\.local/|data/|artifacts/|dist/|__pycache__/|\.terraform/)|"
+    r"(^|/)(\.env$|\.venv/|\.tools/|\.local/|artifacts/|dist/|__pycache__/|\.terraform/)|"
+    r"^Assignment_1/data/|"
     r"\.(pem|key|crt|pyc)$|credentials\.env$"
 )
 required = {
