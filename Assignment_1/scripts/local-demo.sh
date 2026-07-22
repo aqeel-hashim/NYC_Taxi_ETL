@@ -95,7 +95,7 @@ with psycopg.connect(url) as conn:
     rows = dict(conn.execute("""
         SELECT left(pickup_date_key::text, 6), count(*)
         FROM warehouse.fact_taxi_trips GROUP BY 1 ORDER BY 1
-    "").fetchall())
+    """).fetchall())
     assert rows.keys() == {"202301", "202302"}, rows
     assert all(count > 1_000_000 for count in rows.values()), rows
     dashboard_rows = conn.execute("SELECT coalesce(sum(trip_count), 0) FROM analytics.dashboard_trip_metrics").fetchone()[0]

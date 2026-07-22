@@ -4,6 +4,7 @@
 .ruff_cache/
 .mypy_cache/
 htmlcov/
+dist/
 data/
 *.pyc
 __pycache__/
